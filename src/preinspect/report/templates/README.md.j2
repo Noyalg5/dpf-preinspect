@@ -1,0 +1,122 @@
+# dpf-preinspect
+
+Vision pre-inspection and downstream-outcome prediction for used diesel particulate filters (DPFs) arriving at a cleaning and remanufacture line. A research prototype.
+
+> **All data in this repository is synthetic, generated locally by a documented simulator.** The results below demonstrate the method; they are not evidence of real-world performance.
+
+Built independently to explore the problem described in the Eminox–University of Lincoln KTP advert; not affiliated; synthetic data only.
+
+## The problem
+
+Today every used DPF receives a full thermal and pneumatic clean before a flow-restriction test and a filtration-integrity test decide PASS, REWORK (extended clean) or SCRAP. Units that end up scrapped have already used oven time, energy and labour. A pre-inspection station weighs each unit, images both faces and records an incoming flow curve. From those and the service history, this prototype predicts the downstream outcome and routes the unit before it is cleaned:
+
+| Route | Meaning |
+|---|---|
+| PROCEED | standard clean, as today |
+| EXTENDED_CLEAN | straight to the extended clean |
+| QUARANTINE | scrap candidate; a person confirms (the system never scraps automatically) |
+| REFER | inspector review: uncertain prediction, unrecognised anomaly or invalid input |
+
+## Approach
+
+```mermaid
+flowchart LR
+  S[Station: inlet and outlet images, flow curve, weight, service history] --> V{Input and image-quality checks}
+  V -- fail --> R[REFER]
+  V --> U[U-Net defect masks] --> C[Measured concepts: crack length and clock position, missing plugs, deposits, stains, outlet soot]
+  V --> P[PatchCore anomaly map] --> X{Anomaly the defect model cannot name?}
+  X -- yes --> R
+  V --> F[Flow-curve fit and load residual]
+  C --> B[Gradient boosting, calibrated]
+  P --> B
+  F --> B
+  M[Metadata] --> B
+  B --> K[Conformal outcome set and dP-ratio interval] --> D[Cost-based routing policy]
+  D --> O[Route and plain-English rationale]
+  O --> A[(Hash-chained audit trail)]
+  O --> Q[MES route queue]
+```
+
+The deployed path is the interpretable **concept route**: a U-Net turns images into physical measurements, which are fused with flow and metadata by gradient boosting. An end-to-end multi-modal network is trained alongside it as a challenger. See `docs/technical_report.md` for the method and `docs/system_design.md` for the architecture.
+
+## Key results
+
+Profile `{{ profile }}`, run `{{ run_name }}` (code `{{ commit }}`, data manifest `{{ manifest }}`, generator v{{ generator_version }}). Test split, scored against the simulator's true outcome after probability calibration. The operating-point columns apply the same cost-based threshold search, under the same safety constraints, to every row.
+
+| Approach | Macro-F1 | SCRAP recall | Wrongful scrap at operating point | REFER share at operating point | ΔP-ratio MAE | ECE |
+|---|---|---|---|---|---|---|
+{% for r in headline %}
+| {{ r.label }} | {{ r.macro_f1 | pm }} | {{ r.scrap_recall | pm }} | {{ r.wrongful_scrap_op.mean | pct }} | {{ r.refer_share_op.mean | pct }} | {{ r.dp_mae | pm }} | {{ r.ece | pm }} |
+{% endfor %}
+
+{% if cmp %}
+- Highest macro-F1: **{{ cmp.best.label }}** ({{ cmp.best.macro_f1.mean | fmt }}).{% if cmp.fusion_gain is not none %} Combining vision, flow and metadata in the concept route {{ "adds" if cmp.fusion_gain > 0 else "does not add" }} {{ (cmp.fusion_gain | abs) | fmt }} macro-F1 over the best single modality ({{ cmp.best_single_group }}).{% endif %}
+
+- At the operating point, the deployed model ({{ deployed }}) routes {{ decision.rates.scrap_capture_rate | pct }} of true scrap to QUARANTINE or REFER, quarantines {{ decision.rates.wrongful_scrap_rate | pct }} of serviceable units, and refers {{ decision.rates.share_REFER | pct }} of units to an inspector. Expected saving under the assumed costs: {{ decision.cost_per_unit.saving | fmt(2) }} GBP per unit against today's process.
+{% endif %}
+{% if validate %}
+
+Acceptance tests (illustrative targets in `configs/acceptance.yaml`; full evidence in [reports/validation_report.md](reports/validation_report.md)):
+
+| ID | Criterion | Target | Measured | Result |
+|---|---|---|---|---|
+{% for c in validate.acceptance %}
+| {{ c.id }} | {{ c.name }} | {{ c.op }} {{ c.target | fmt }} | {{ c.value | fmt }} | {{ c.status }} |
+{% endfor %}
+{% endif %}
+{% if simulate %}
+
+Line simulation ({{ simulate.replications }} replications, assumed rates and costs): oven hours {{ simulate.summary["oven_hours|mean"]["baseline"] | fmt(0) }} → {{ simulate.summary["oven_hours|mean"]["with gate"] | fmt(0) }}, energy {{ simulate.summary["energy_kwh|mean"]["baseline"] | fmt(0) }} → {{ simulate.summary["energy_kwh|mean"]["with gate"] | fmt(0) }} kWh, mean lead time {{ simulate.summary["lead_time_h_mean|mean"]["baseline"] | fmt(1) }} → {{ simulate.summary["lead_time_h_mean|mean"]["with gate"] | fmt(1) }} h, over {{ line_sim.horizon_days }} simulated days.
+{% endif %}
+
+## Quickstart
+
+```bash
+make setup     # virtual environment and dependencies (uses uv when installed)
+make demo      # data -> models -> evaluation -> validation -> simulation -> reports -> API smoke test
+make api       # then, in a second terminal: make app   (optionally: make replay)
+```
+
+`make test` runs the test suite on the tiny profile; `make full` repeats the pipeline at full scale. Measured stage times for this run: {% for k, v in timings.items() %}{{ k }} {{ v | fmt(0) }} s{{ "; " if not loop.last }}{% endfor %}. They were taken on an 8 GB Apple M2 under heavy memory pressure from other applications; see `docs/project_plan.md` for the budget discussion.
+
+## Repository map
+
+| Path | Contents |
+|---|---|
+| `src/preinspect/synth/` | virtual inspection cell: population, flow bench, outcome model, scenes, renderer, faults, inspectors |
+| `src/preinspect/data/` | validation gate, data card statistics, datasets |
+| `src/preinspect/classical/` | substrate localisation, lattice estimation, cell states, classical concepts |
+| `src/preinspect/models/` | U-Net, PatchCore, fusion network, boosting, calibration, cross-fitted vision |
+| `src/preinspect/explain/` | Grad-CAM, Integrated Gradients, SHAP and tests against ground truth |
+| `src/preinspect/decision/` | conformal prediction, cost model, routing policy, rationale templates |
+| `src/preinspect/validation/` | robustness, domain shift, MSA, DoE, latency, acceptance |
+| `src/preinspect/service/` | inspection pipeline, FastAPI, audit trail, MES adapter, monitoring, replay |
+| `src/preinspect/app/` | Streamlit decision-support UI |
+| `src/preinspect/sim/` | SimPy line model and sensitivity analysis |
+| `src/preinspect/report/` | Jinja2 templates and rendering of every result-bearing document |
+| `configs/` | profiles, costs, acceptance criteria, line simulation |
+| `docs/` | domain primer, design, technical report, risk, plan, training, cards, decisions, FAQ |
+| `reports/` | rendered validation and data-quality reports, figures |
+
+## Objectives and evidence
+
+| KTP objective | Evidence in this repository |
+|---|---|
+| Machine vision that detects and classifies defects | U-Net segmentation with per-class Dice, IoU and AUROC; classical image-processing baseline; anomaly guard for unseen defects (`docs/technical_report.md`) |
+| AI integrated with the process for real-time decision support | Inspection API, Streamlit station UI, MES route queue, latency benchmark (`docs/system_design.md`) |
+| Validation and optimisation under industrial conditions | Robustness, domain shift and commissioning, MSA, imaging DoE, acceptance tests (`reports/validation_report.md`) |
+| Reducing unnecessary downstream processing and cost | Cost-based routing policy and line simulation with sensitivity analysis |
+| Embedding through knowledge transfer | Training manual, demo script, FAQ, model and data cards (`docs/`) |
+| Project planning, risk assessment, research output | `docs/project_plan.md`, `docs/risk_assessment.md`, `docs/technical_report.md`, `docs/decisions.md` |
+
+## Limitations
+
+- The data is synthetic. The simulator encodes assumptions written down in `docs/domain_primer.md`; a model can only learn those assumptions. Real-world performance is unknown until real data is collected (`docs/real_data_plan.md`).
+- Faces are stylised with about 30 to 50 cells across; a real station needs higher resolution or tiled inference.
+- Costs, energy figures and line capacities are assumptions for illustration.
+{% if decision and decision.rates.share_REFER > 0.3 %}- At the safety constraints used here the policy refers {{ decision.rates.share_REFER | pct }} of units to an inspector; better perception of thin defects is the main lever.
+{% endif %}
+
+## Licence
+
+MIT, see `LICENSE`. Copyright Noyal George.

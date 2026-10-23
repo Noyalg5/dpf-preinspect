@@ -1,0 +1,177 @@
+{% set s = stats %}
+{% set d = decision %}
+{% set v = validate %}
+# Predicting the downstream outcome of used diesel particulate filters from images, flow and service history: a synthetic-data study
+
+*Rendered from run `{{ run_name }}` (profile `{{ profile }}`, code `{{ commit }}`, data manifest `{{ manifest }}`) on {{ today }}.*
+
+> **All data is synthetic.** Every result below was produced on data from a documented simulator. It demonstrates the method and the validation approach; it is not an estimate of real-world performance.
+
+## Abstract
+
+Used diesel particulate filters (DPFs) are cleaned before tests decide whether they return to service, need an extended clean or are scrapped, so scrapped units consume cleaning capacity for nothing. We study a pre-inspection gate that predicts the downstream outcome before cleaning from two face images, an incoming flow-bench curve and service metadata. A simulator generates {{ s.n_units | fmt }} units with partial observability by design: some failure modes are visible only in images, some only in flow, and some (internal cracks) only indirectly. We compare classical image processing, learned defect concepts fused by gradient boosting (the *concept route*) and an end-to-end multi-modal network. On the test split, the best macro-F1 is {{ cmp.best.macro_f1.mean | fmt }} ({{ cmp.best.label }}). After calibration, split-conformal prediction sets reach {{ d.coverage["0.1"].sets_vs_recorded.coverage | pct }} coverage at a nominal 90 %. A cost-based routing policy with a wrongful-scrap cap and a minimum scrap-capture constraint captures {{ d.rates.scrap_capture_rate | pct }} of scrap before cleaning, at the price of referring {{ d.rates.share_REFER | pct }} of units to an inspector. {% if v %}An industrial validation campaign (robustness, domain shift, measurement system analysis, imaging design of experiments, latency) passes {{ v.acceptance | selectattr("status", "equalto", "PASS") | list | length }} of {{ v.acceptance | length }} illustrative acceptance criteria. {% endif %}We report every result, including those that are not favourable, and discuss what would be needed to transfer the method to real data.
+
+## 1. Introduction
+
+A cleaning and remanufacture line receives used DPFs from many applications and duty cycles. Today every unit receives a thermal and pneumatic clean before a flow-restriction test (pressure-drop ratio against the new-part specification) and a filtration-integrity test decide its disposition. Pre-inspection could save oven time, energy and labour by recognising scrap early, sending heavily loaded units straight to an extended clean, and asking an inspector only when the evidence is unclear. The physical background is summarised in `docs/domain_primer.md`.
+
+Two properties make the problem harder than defect detection alone. First, the outcome depends on things the camera cannot see: ash deep in the channels, glazing, and cracks that do not reach a face. Second, the modalities interact: a crack or missing plugs open a bypass that *lowers* the measured pressure drop, so a damaged, heavily loaded filter can look normal on flow alone. The questions studied are:
+
+1. How well can each modality, and their fusion, predict the outcome?
+2. Do interpretable, measured concepts lose accuracy compared with an end-to-end network?
+3. Can the prediction be turned into a safe, cost-aware routing policy with calibrated uncertainty?
+4. How would such a system be validated under industrial conditions?
+
+## 2. Related work
+
+Segmentation uses a U-Net (Ronneberger et al., 2015) with a ResNet encoder. Unknown defects are handled by a PatchCore-style memory bank of normal patch features (Roth et al., 2022). Explanations use Grad-CAM (Selvaraju et al., 2017), Integrated Gradients (Sundararajan et al., 2017) and SHAP (Lundberg & Lee, 2017). They are tested with deletion and insertion curves (Petsiuk et al., 2018) and a model-randomisation sanity check (Adebayo et al., 2018). Probabilities are calibrated by temperature scaling (Guo et al., 2017). Uncertainty is expressed with split-conformal prediction sets, using adaptive prediction sets (Romano et al., 2020) and following the presentation of Angelopoulos & Bates. Measurement-system analysis follows the AIAG MSA Reference Manual (4th ed.), risk analysis the AIAG & VDA FMEA Handbook (2019), and AI risk management ISO/IEC 23894:2023. Documentation follows the model-card idea (Mitchell et al., 2019) and datasheets for datasets (Gebru et al., 2021).
+
+## 3. Data: a virtual inspection cell
+
+The simulator (`src/preinspect/synth/`, generator v{{ generator_version }}, frozen before any model was trained) draws each unit's service history from one of six applications. That history drives soot and ash load, thermal stress (and with it cracks, plug loss and melting), and oil or coolant contamination. Face images are rendered from physical layers (reflectance, relief, transmission) under three lighting modes, with seating, exposure, white-balance, noise, blur and clamp variation. Eight defect classes have pixel masks, and dust, reflections, marker ink and lighting gradients act as nuisances. The incoming flow curve follows ΔP = aQ + bQ² with loading raising both terms and leak paths lowering ΔP. A documented outcome model maps the latent condition to post-clean ΔP ratio, integrity and disposition, with test noise.
+
+Data-quality faults are injected on purpose: missing and out-of-range values, duplicate bookings, Fahrenheit temperatures and mistyped dispositions. A validation gate quarantined {{ s.validation.n_quarantined_records | fmt }} of {{ s.validation.n_records | fmt }} records and blanked {{ s.validation.n_fields_blanked | fmt }} ambiguous temperature fields. Recorded dispositions differ from the true outcome on {{ s.label_vs_truth_disagreement | pct }} of accepted records because of test noise near the specification limit. Splits are chronological (train, calibration, test). A *novel* set contains thermal melt, a defect class absent from training, and a *shift* set has an unseen cell density and a different camera. See `docs/data_card.md`.
+
+## 4. Methods
+
+**Classical concepts.** The substrate is located from texture and its radius refined on the mat gap. The cell lattice comes from the spectrum (with the datasheet pitch resolving the checkerboard/wall-grid ambiguity) and a template phase search. Per-cell sampling gives missing-plug counts and blocked-cell fractions. A notch filter removes the periodic lattice, after which a Sato ridge filter and skeleton length measure cracks. The polar perimeter profile measures chips, and LAB statistics measure stains and dark (sooty) areas.
+
+**Perception and cross-fitting.** A U-Net with a ResNet-18 encoder predicts {{ cfg.perception.classes | length }} defect classes and image-level presence. Training units are split into {{ cfg.perception.folds }} folds, each with its own U-Net and anomaly bank. A training unit's concepts come from the models that did not see it, so the outcome model learns from concepts as noisy as those it meets in service. Concepts (areas, crack length in mm, clock position, missing-plug count) are measured from the predicted masks.
+
+**Anomaly guard.** Mid-level ResNet-18 features of defect-free training faces form a coreset memory bank, and nearest-neighbour distances give an anomaly map. The guard acts on the *unexplained* anomaly, meaning the part of the map outside regions the perception model already names, so known defects are not referred merely for being unusual.
+
+**Concept route.** Gradient boosting (scikit-learn histogram boosting) fuses learned concepts, anomaly scores, flow features (fitted a, b, ΔP at rated flow over the new-part value) and metadata. It predicts the outcome and the post-clean ΔP ratio. A cross-modal feature compares flow restriction with what the weight gain predicts; a value below expectation indicates bypass.
+
+**End-to-end network.** A shared ResNet-18 encodes both faces, a 1D convolution encodes the normalised flow curve, and an MLP encodes metadata with missing-value indicators. A softmax gate weights the three embeddings per unit before heads for outcome, ΔP ratio and integrity. The loss is a class-weighted multi-task loss.
+
+**Calibration, conformal prediction and routing.** The calibration split is divided into two halves. On the first, networks are temperature-scaled; for boosting models a method (sigmoid, isotonic or temperature) is chosen by cross-validated log-loss. The same half sets the anomaly threshold and the routing thresholds. On the second half, conformal quantiles are fitted. The policy routes a unit to REFER for invalid inputs or unexplained anomaly, to QUARANTINE when P(SCRAP) exceeds a threshold, to REFER when SCRAP is in the conformal set, to EXTENDED_CLEAN when P(REWORK) exceeds a threshold, and otherwise to PROCEED. Thresholds and the routing confidence level minimise expected cost (`configs/costs.yaml`, every value an assumption) subject to a wrongful-scrap cap of {{ costs.policy.wrongful_scrap_cap.value | pct }} and a minimum scrap capture of {{ costs.policy.min_scrap_capture.value | pct }}. A template rationale explains every decision from measured values.
+
+## 5. Experimental set-up
+
+Profile `{{ profile }}`: {{ s.n_units | fmt }} units at {{ s.image_size }} px. U-Nets were trained for {{ cfg.perception.epochs }} epochs on {{ cfg.perception.crop }} px crops, and the fusion network for {{ cfg.fusion.epochs }} epochs at {{ cfg.fusion.image_size }} px with {{ cfg.fusion.seeds }} seed(s). Headline metrics are on the test split against the simulator's true outcome. Training uses recorded labels, as a real line would. Stage times: {% for k, val in timings.items() %}{{ k }} {{ val | fmt(0) }} s{{ "; " if not loop.last }}{% endfor %}.
+
+## 6. Results
+
+### 6.1 Headline comparison
+
+| Approach | Macro-F1 | Balanced accuracy | SCRAP recall | SCRAP AUC | ΔP-ratio MAE | ECE before → after calibration |
+|---|---|---|---|---|---|---|
+{% for r in headline %}
+{% set mm = models[r.model] if r.model in models else models[r.model ~ "_s0"] %}
+| {{ r.label }} | {{ r.macro_f1 | pm }} | {{ mm.calibrated.truth.balanced_accuracy | fmt }} | {{ r.scrap_recall | pm }} | {{ r.auc_scrap | pm }} | {{ r.dp_mae | pm }} | {{ r.ece_raw.mean | fmt }} → {{ r.ece | pm }} |
+{% endfor %}
+
+{% if cmp.best_is_concept_route %}A concept-route model has the highest macro-F1.{% else %}The end-to-end network has the highest macro-F1.{% endif %} The learned concept route differs from the end-to-end network by {{ cmp.concept_minus_e2e | fmt }} macro-F1 and from the classical concept route by {{ cmp.learned_minus_classical | fmt }}. Adding flow and metadata to the end-to-end image model changes macro-F1 by {{ cmp.e2e_gain_over_image | fmt }}. {% if cmp.flow_scrap_auc is not none and cmp.flow_scrap_auc < 0.6 %}Flow alone barely recognises scrap (SCRAP AUC {{ cmp.flow_scrap_auc | fmt }}), as the simulator intends: leak paths lower the pressure drop, so damaged units can look healthy on flow.{% endif %}
+
+### 6.2 Modality ablation (concept route)
+
+| Modalities | Macro-F1 | SCRAP recall | SCRAP AUC | ΔP-ratio MAE |
+|---|---|---|---|---|
+{% for r in ablation %}
+| {{ r.groups }} | {{ r.macro_f1 | pm }} | {{ r.scrap_recall | pm }} | {{ r.auc_scrap | pm }} | {{ r.dp_mae | pm }} |
+{% endfor %}
+
+V = learned visual concepts and anomaly scores, F = flow, M = metadata. {% if cmp.fusion_gain is not none and cmp.fusion_gain > 0 %}Fusing all three improves macro-F1 by {{ cmp.fusion_gain | fmt }} over the best single group ({{ cmp.best_single_group }}), consistent with the partial observability built into the data: vision sees damage, flow and metadata see loading.{% elif cmp.fusion_gain is not none %}Fusing all three does not beat the best single group ({{ cmp.best_single_group }}); see the discussion.{% endif %} Whether a pre-clean flow test earns its cycle time can be read from the rows with and without F.
+
+### 6.3 Perception and the anomaly guard
+
+| Class | Dice | IoU | Image AUROC | Test images with class |
+|---|---|---|---|---|
+{% for c, r in vision.segmentation_test.items() %}
+| {{ c.replace("_", " ") }} | {{ r.dice | fmt }} | {{ r.iou | fmt }} | {{ r.image_auroc | fmt }} | {{ r.positive_images }} |
+{% endfor %}
+
+Comparing image AUROC with Dice shows, class by class, whether the network knows *that* a defect is present before it can outline it; thin and tiny classes (cracks, missing plugs, debris) are where the two diverge most when they do. The anomaly guard separates defective from defect-free test images with image AUROC {{ vision.anomaly_test.image_auroc | fmt }} (pixel AUROC {{ vision.anomaly_test.pixel_auroc | fmt }}). On the novel set, melted faces are separated from defect-free faces with image AUROC {{ vision.anomaly_novel_vs_normal.image_auroc | fmt }} and pixel AUROC {{ vision.anomaly_novel_vs_normal.pixel_auroc | fmt }}.
+
+![Reliability](../reports/figures/reliability.png)
+
+### 6.4 Explanations tested against ground truth
+
+{% set g = explain.gradcam %}
+- **Grad-CAM, end-to-end network, SCRAP class.** Heatmap energy inside the true defect mask: {{ g.energy_in_mask | pct }}, against a mask area of {{ g.mask_area_share | pct }} (chance). Pointing-game accuracy {{ g.pointing_accuracy | pct }} against a chance level of {{ g.pointing_chance | pct }}.
+- **Deletion and insertion.** Area under the P(SCRAP) curve when removing pixels in Grad-CAM order {{ g.deletion_auc.cam | fmt }} versus random order {{ g.deletion_auc.rnd | fmt }} (lower is better); insertion {{ g.insertion_auc.cam | fmt }} versus {{ g.insertion_auc.rnd | fmt }} (higher is better). {% if g.deletion_auc.cam < g.deletion_auc.rnd - 0.02 %}Salient pixels matter more than random ones.{% else %}Removing the most salient pixels first is no faster than a random order: the network's SCRAP evidence is not concentrated where Grad-CAM points, a warning against reading its heatmaps as a defect locator.{% endif %}
+- **Sanity check.** Rank correlation between heatmaps of the trained network and of a network with its last encoder stage re-initialised: {{ g.randomised_similarity | fmt }} (near zero means the explanation depends on the learned weights, as it should).
+- **SHAP, concept route.** Global attributions grouped by physical concept rank the simulator's true drivers with Spearman correlation {{ explain.shap.driver_rank_agreement | fmt(2) }}. Share of attribution by modality: {% for k, val in explain.shap.modality_share.items() %}{{ k }} {{ val | pct }}{{ ", " if not loop.last }}{% endfor %}.
+
+![SHAP](../reports/figures/shap_global.png)
+
+### 6.5 Uncertainty and decisions
+
+{% for a, c in d.coverage.items() %}
+- Conformal sets at α = {{ a }}: coverage {{ c.sets_vs_recorded.coverage | pct }} (recorded labels), {{ c.sets_vs_truth.coverage | pct }} (true outcome); mean set size {{ c.sets_vs_recorded.mean_set_size | fmt(2) }}. ΔP intervals ± {{ c.interval_half_width | fmt(3) }} cover {{ c.interval_vs_recorded | pct }}.
+{% endfor %}
+- Chosen policy: quarantine at P(SCRAP) ≥ {{ d.policy.t_quarantine | fmt(2) }}, extended clean at P(REWORK) ≥ {{ d.policy.t_rework | fmt(2) }}, routing level α = {{ d.policy.alpha }}.
+- Test routes: PROCEED {{ d.rates.share_PROCEED | pct }}, EXTENDED_CLEAN {{ d.rates.share_EXTENDED_CLEAN | pct }}, QUARANTINE {{ d.rates.share_QUARANTINE | pct }}, REFER {{ d.rates.share_REFER | pct }}. Wrongful scrap {{ d.rates.wrongful_scrap_rate | pct }}; scrap capture {{ d.rates.scrap_capture_rate | pct }}.
+- Expected cost per unit (assumed costs): today {{ d.cost_per_unit.baseline | fmt(2) }} GBP, with the gate {{ d.cost_per_unit.gated | fmt(2) }} GBP.
+
+![Cost against threshold](../reports/figures/cost_curve.png)
+
+{% if v %}
+### 6.6 Industrial validation
+
+Robustness, domain shift, measurement system analysis, the imaging DoE and latency are reported in full in `reports/validation_report.md`. In summary:
+
+- **Robustness.** The largest increase in unsafe automatic routes over clean inputs, across all corruptions and severities, is {{ (v.acceptance | selectattr("id", "equalto", "AC-06") | first).value | fmt }}.
+- **Domain shift.** On the new product line, macro-F1 is {{ v.domain_shift.before.macro_f1 | fmt }} before commissioning and {{ v.domain_shift.after.macro_f1 | fmt }} after commissioning on {{ v.domain_shift.commissioning_units }} units (main test split {{ v.domain_shift.reference.macro_f1 | fmt }}). {% if v.domain_shift.after.macro_f1 > v.domain_shift.before.macro_f1 %}Commissioning recovers part of the loss.{% else %}Commissioning did not improve macro-F1 here; with so few units, fine-tuning the perception model alone is not enough.{% endif %}
+- **MSA.** Route repeatability under re-imaging is {{ v.msa.attribute.route_repeatability | pct }}. Fleiss' kappa across the system and three simulated inspectors is {{ v.msa.attribute.fleiss_kappa | fmt(2) }}. Gauge R&R on the predicted ΔP ratio gives %GRR {{ v.msa.grr.pct_grr | fmt(1) }} % and ndc {{ v.msa.grr.ndc | fmt(0) }}.
+- **DoE.** The recommended imaging set-up is {{ v.doe.recommended.lighting }}, {{ v.doe.recommended.exposure_ev }} EV, {{ v.doe.recommended.resolution }} px.
+- **Latency.** p95 per unit on CPU is {{ v.latency.latency_p95_cpu_s | fmt(2) }} s ({{ v.latency.deployed_cpu_path }}).
+{% endif %}
+
+{% if simulate %}
+### 6.7 Process impact
+
+| KPI | Today | With gate |
+|---|---|---|
+{% for k in ["throughput_per_day", "oven_hours", "energy_kwh", "co2e_kg", "cost_per_unit", "wrongful_scraps", "wip_mean", "lead_time_h_mean"] %}
+| {{ k.replace("_", " ") }} | {{ simulate.summary[k ~ "|mean"]["baseline"] | fmt(1) }} | {{ simulate.summary[k ~ "|mean"]["with gate"] | fmt(1) }} |
+{% endfor %}
+
+Means of {{ simulate.replications }} replications of {{ line_sim.horizon_days }} days, with route rates taken from the test split and every rate and cost assumed. The input the saving is most sensitive to is `{{ simulate.tornado[0].parameter }}`.
+
+![Tornado](../reports/figures/tornado.png)
+{% endif %}
+
+## 7. Discussion
+
+**Accuracy against interpretability.** The concept route expresses every prediction in physical quantities an inspector can check: crack length and clock position, missing-plug count, outlet-face soot, flow restriction against weight gain. That makes the rationale possible, makes commissioning a new line a perception-only task, and lets the explanation be tested against what the simulator knows. {% if cmp.concept_minus_e2e is not none and cmp.concept_minus_e2e >= 0 %}Here it costs no accuracy against the end-to-end network.{% else %}Here the end-to-end network is ahead in macro-F1, and the difference has to be weighed against those advantages.{% endif %}
+
+**What limits scrap detection.** By design of the simulator, part of the scrap population fails integrity because of internal cracks that never reach a face. Their only signatures are outlet-face soot and a pressure drop lower than the weight gain predicts, both noisy. The safety constraint therefore forces many referrals. Better perception of thin defects (cracks, missing plugs) is the most valuable improvement, followed by a cheap direct leak measurement at the station.
+
+**Operating point.** Macro-F1 differences between the strongest models are small, but their operating points are not. Under the same cost model and constraints, the deployed model refers {{ d.rates.share_REFER | pct }} of units{% if cmp.deployed_fewest_referrals %}, fewer than any other approach{% else %}; at least one other approach needs fewer referrals, which argues for revisiting the deployed choice{% endif %}. Choosing a model by its routing cost at the required safety level, not by a single accuracy figure, is the main practical lesson.
+
+## 8. Threats to validity
+
+- **Synthetic data.** The relationships between latent condition and observations are the simulator's assumptions. A model can only rediscover them, so absolute numbers mean little; relative comparisons depend on the simulator's balance of visible and invisible failure modes.
+- **Simplified optics.** Stylised faces have far fewer cells than real ones; backlight is modelled per face; there is no specular texture of real cement or soot.
+- **Small calibration and test sets** in the demo profile give wide confidence intervals on recall and coverage.
+- **Re-use of the calibration half** for both probability calibration and threshold selection may make the chosen thresholds slightly optimistic.
+- **Simulated inspectors and line.** Inspector biases and line capacities are assumptions.
+
+## 9. Future research and development
+
+1. Collect real data under the protocol in `docs/real_data_plan.md`: a labelled image set, flow curves and downstream test records for a few hundred units, with an inter-rater study.
+2. Close the sim-to-real gap by pre-training perception on simulated faces rendered with real cell geometry, then fine-tuning on real labelled faces.
+3. Add a direct leak measurement (light or smoke transmission) at the station, the strongest missing signal for internal cracks.
+4. Tiled, high-resolution inference for real cell counts, and an edge deployment benchmark.
+5. Active learning: route the most informative REFER cases to labelling.
+6. A shadow-mode pilot that measures the gate's decisions against downstream tests without acting on them.
+
+## References
+
+- Adebayo, J. et al. (2018). Sanity checks for saliency maps. NeurIPS.
+- AIAG (2010). Measurement Systems Analysis Reference Manual, 4th ed.
+- AIAG & VDA (2019). FMEA Handbook.
+- Angelopoulos, A. N. & Bates, S. A gentle introduction to conformal prediction and distribution-free uncertainty quantification. arXiv:2107.07511. [verify version]
+- DieselNet Technology Guide: diesel particulate filters. dieselnet.com. [verify sections]
+- Gebru, T. et al. (2021). Datasheets for datasets. Communications of the ACM.
+- Guo, C. et al. (2017). On calibration of modern neural networks. ICML.
+- ISO/IEC 23894:2023. Information technology, artificial intelligence, guidance on risk management.
+- Lundberg, S. M. & Lee, S.-I. (2017). A unified approach to interpreting model predictions. NeurIPS.
+- Mitchell, M. et al. (2019). Model cards for model reporting. FAT* conference.
+- Petsiuk, V., Das, A. & Saenko, K. (2018). RISE: randomized input sampling for explanation of black-box models. BMVC.
+- Romano, Y., Sesia, M. & Candès, E. (2020). Classification with valid and adaptive coverage. NeurIPS.
+- Ronneberger, O., Fischer, P. & Brox, T. (2015). U-Net: convolutional networks for biomedical image segmentation. MICCAI.
+- Roth, K. et al. (2022). Towards total recall in industrial anomaly detection. CVPR.
+- Selvaraju, R. R. et al. (2017). Grad-CAM: visual explanations from deep networks via gradient-based localization. ICCV.
+- Sundararajan, M., Taly, A. & Yan, Q. (2017). Axiomatic attribution for deep networks. ICML.

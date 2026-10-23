@@ -1,0 +1,104 @@
+# System design
+
+*Rendered on {{ today }} from configuration and run `{{ run_name }}`. Station sizing figures are assumptions for supplier discussions, not specifications.*
+
+## 1. Architecture
+
+```mermaid
+flowchart TB
+  subgraph Station[Pre-inspection station]
+    CAM[Camera and lighting] --> PC[Edge PC]
+    SCALE[Scale] --> PC
+    FLOW[Flow bench] --> PC
+    HMI[Operator screen: Streamlit] <--> API
+  end
+  subgraph Edge[Edge PC services]
+    API[Inspection API: FastAPI] --> PIPE[Inspection pipeline]
+    PIPE --> CHK[Input and image-quality checks]
+    PIPE --> PER[Perception U-Nets, ONNX on CPU]
+    PIPE --> GRD[Anomaly guard]
+    PIPE --> OUT[Concept-route model, calibration, conformal sets, routing policy, rationale]
+    API --> AUD[(Audit trail: SQLite hash chain)]
+    API --> MES[MES adapter]
+  end
+  MES --> LINE[MES / PLC route queue]
+  AUD --> DASH[Quality engineer dashboard]
+  ERP[Service history from goods-in] --> API
+```
+
+**Data flow per unit.** Goods-in record (part number, service history) → weight and flow curve → two face images → input and image-quality checks → perception and anomaly maps → concepts → calibrated outcome probabilities, conformal set and ΔP interval → routing policy → route, rationale and overlays to the operator → operator accepts or overrides → audit record (input hash, model and data versions, outputs, decision) → route published to the line → downstream test result logged later for monitoring.
+
+## 2. Imaging station concept
+
+![Station concept](../reports/figures/station.png)
+
+- **Views.** Inlet face, then outlet face after turning the unit over in a cradle that seats it repeatably (centring stops, turntable for rotation).
+- **Lighting.** A switchable diffuse dome or low-angle ring light for deposits, stains and chips, and a backlight panel for cracks and channels missing a plug, which show as light leaks.{% if validate %} The imaging DoE recommends {{ validate.doe.recommended.lighting }} lighting at {{ validate.doe.recommended.exposure_ev }} EV and {{ validate.doe.recommended.resolution }} px among the settings tested.{% endif %}
+- **Camera.** Area-scan, fixed working distance, low-distortion or telecentric lens; enclosure to exclude ambient light.
+- **Scale and flow bench.** Weight gain against the part's nominal weight; incoming flow curve at {{ cfg.generator.flow.q_m3s | length }} flow points.
+
+### Resolution budget
+
+Field of view {{ cfg.station.fov_mm | fmt(0) }} mm (largest substrate plus can and margin). Real cell pitch is 25.4/√cpsi mm. Wall thickness {{ cfg.station.wall_mm }} mm and narrowest crack of interest {{ cfg.station.min_crack_mm }} mm are assumptions to confirm per part.
+
+| Sensor | Pixels across field | mm per pixel | px per wall | px per {{ cfg.station.min_crack_mm }} mm crack | px per cell pitch (100 / 200 / 300 / 400 cpsi) | Tiles per face ({{ cfg.station.tile_px }} px) | Walls resolved | Crack under front light | Crack under backlight |
+|---|---|---|---|---|---|---|---|---|---|
+{% for b in budget %}
+| {{ b.sensor }} | {{ b.px_across_field | fmt }} | {{ b.mm_per_px | fmt(3) }} | {{ b.px_per_wall | fmt(2) }} | {{ b.px_per_crack | fmt(2) }} | {{ b.px_per_pitch_100cpsi | fmt(1) }} / {{ b.px_per_pitch_200cpsi | fmt(1) }} / {{ b.px_per_pitch_300cpsi | fmt(1) }} / {{ b.px_per_pitch_400cpsi | fmt(1) }} | {{ b.tiles_per_face }} | {{ b.walls_resolved | fmt }} | {{ b.crack_front_light | fmt }} | {{ b.crack_backlight | fmt }} |
+{% endfor %}
+
+Requirements: at least {{ cfg.station.min_px_per_wall }} px per wall, at least {{ cfg.station.min_px_per_crack_front }} px across a crack under front light, and at least {{ cfg.station.min_px_per_crack_backlight }} px under backlight, where transmitted light makes sub-pixel cracks visible. The table shows why the design relies on backlight for cracks and missing plugs, and why a real station runs the perception model on tiles of the full-resolution face. The prototype instead renders stylised faces with 30 to 50 cells across at {{ cfg.generator.image_size }} px, which gives a similar number of pixels per cell to the larger sensors.
+
+### Bill of materials (indicative)
+
+| Item | Specification | Price |
+|---|---|---|
+| Area-scan camera | 12 to 20 MP, global shutter, GigE Vision or USB3 Vision | to be quoted |
+| Lens | Fixed focal length or telecentric, field ≥ {{ cfg.station.fov_mm | fmt(0) }} mm, low distortion | to be quoted |
+| Dome and low-angle ring light | Switchable, white LED, with controller | to be quoted |
+| Backlight panel | Collimated LED, ≥ 350 mm square, sealed against ash dust | to be quoted |
+| Cradle and turntable | Self-centring for 229 to 330 mm cans, repeatable rotation, lifting aid | to be quoted |
+| Enclosure | Light-tight, interlocked door, extraction port | to be quoted |
+| Scale | Load cell, resolution ≤ 5 g, capacity to suit the heaviest unit | to be quoted |
+| Edge PC | x86 or ARM, 16 GB RAM, optional GPU, industrial rating | to be quoted |
+| Operator screen | Touch screen, gloves usable | to be quoted |
+
+## 3. Edge deployment
+
+- The U-Nets are exported to ONNX and run with ONNX Runtime on CPU (largest output difference from PyTorch {{ validate.latency.onnx_max_abs_diff | fmt(6) if validate else "n/a" }}); the gradient-boosting model and decision layer are light.
+- {% if validate %}Measured p95 latency per unit on CPU: {{ validate.latency.latency_p95_cpu_s | fmt(2) }} s.{% endif %} A station cycle is minutes long, so CPU inference is sufficient; a small GPU would allow tiled high-resolution inference.
+- Models, thresholds and the image-quality reference ship as one versioned run folder with its provenance (code commit, data manifest hash).
+
+## 4. MLOps loop
+
+```mermaid
+flowchart LR
+  M[Monitor: PSI drift, p-chart, calibration vs downstream results, override rate] --> T{Trigger?}
+  T -- yes --> L[Label: REFER cases, overrides, sampled routine units]
+  L --> R[Retrain and recalibrate]
+  R --> V[Validate: acceptance tests on held-out recent data]
+  V --> A{Approval gate: quality and operations sign-off}
+  A -- approved --> D[Deploy new run folder]
+  A -- rejected --> L
+  D --> M
+```
+
+Triggers: PSI above {{ cfg.monitoring.psi_alert }} on any monitored input, a p-chart point outside its limits, a calibration gap, a rising override rate, a new product line, or a scheduled review.
+
+## 5. Integration with line systems
+
+The `MesAdapter` interface (`src/preinspect/service/mes.py`) has a mock implementation keeping a route queue in SQLite. A production adapter would publish the same information over OPC UA or MQTT:
+
+| Information | OPC UA node (example) | MQTT topic (example) |
+|---|---|---|
+| Unit ID at station | `ns=2;s=PreInspect/Station1/UnitId` | `line1/preinspect/station1/unit` |
+| Route recommendation | `ns=2;s=PreInspect/Station1/Route` | `line1/preinspect/station1/route` |
+| Route confirmed by operator | `ns=2;s=PreInspect/Station1/RouteConfirmed` | `line1/preinspect/station1/route/confirmed` |
+| Station status and fault | `ns=2;s=PreInspect/Station1/Status` | `line1/preinspect/station1/status` |
+| Model version | `ns=2;s=PreInspect/Station1/ModelVersion` | `line1/preinspect/station1/model` |
+
+The edge PC sits in the OT network zone. Only route and status leave the station; images stay on the station or on a managed store. The API has no external exposure.
+
+## 6. Retargeting to a new-build line
+
+The same pipeline could inspect bare substrates before canning: change `defect_classes` to manufacturing defects (cracks, chipped skin, plug voids, cell distortion), drop the flow-based loading features and service history from the model groups in `configs/`, and redefine the outcome as accept or reject against the substrate specification. The generator, validation gate, perception, anomaly guard, calibration, routing and audit trail are unchanged. This is not built.
