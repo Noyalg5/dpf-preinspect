@@ -4,3 +4,14 @@ name: full
 dataset_name: full
 generator:
   image_size: 384
+generator:
+  n_units: {main: 2600, novel: 120, shift: 260}
+perception:
+  epochs: 14
+fusion:
+  image_size: 224
+  epochs: 12
+  seeds: 3
+campaign:
+  robustness:
+    n_units: 100

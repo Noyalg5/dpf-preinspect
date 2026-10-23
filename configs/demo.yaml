@@ -1,4 +1,5 @@
-# Laptop demonstration profile: end to end in under 15 minutes on an M2.
+# Laptop demonstration profile, sized for about 15 minutes end to end on an
+# unloaded Apple M2 (measured stage times are recorded in every run).
 extends: base
 name: demo
 dataset_name: demo
@@ -6,8 +7,24 @@ generator:
   image_size: 256
   n_units: {main: 1100, novel: 60, shift: 140}
 perception:
-  epochs: 8
+  epochs: 6
   crop: 160
 fusion:
   image_size: 160
-  epochs: 8
+  epochs: 6
+tabular:
+  classifier: {max_iter: 200}
+  regressor: {max_iter: 200}
+explain:
+  n_units: 30
+  n_deletion: 10
+  ig_units: 48
+  shap_background: 40
+  shap_units: 80
+campaign:
+  robustness:
+    n_units: 40
+  doe:
+    images_per_class: 20
+  latency:
+    units: 15
