@@ -67,6 +67,10 @@ def run(cfg: Config, run_name: str | None = None) -> Run:
     run_ = open_run(cfg, run_name)
     render_data_card(cfg)
     copy_figures(cfg, run_)
+    if "validate" in run_.read_metrics():
+        from preinspect.stages.validate import render_validation_report
+
+        render_validation_report(cfg, run_)
     context = build_context(cfg, run_)
     for name in DOCS:
         render_to_file(f"{name}.md.j2", context, docs_dir(cfg) / f"{name}.md")

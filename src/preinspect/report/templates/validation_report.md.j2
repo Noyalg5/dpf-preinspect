@@ -18,10 +18,10 @@
 
 ## Evidence
 
-### Decisions on the test split (AC-01, AC-02, AC-05)
+### Decisions on the test split (AC-01, AC-02, AC-05, AC-08)
 
 - Test units: {{ decision.n_test }}. Wrongful-scrap rate {{ decision.rates.wrongful_scrap_rate | pct }}, SCRAP capture (QUARANTINE or REFER) {{ decision.rates.scrap_capture_rate | pct }}, REFER share {{ decision.rates.share_REFER | pct }}.
-- Thresholds: quarantine at P(SCRAP) >= {{ decision.policy.t_quarantine | fmt(2) }}, extended clean at P(REWORK) >= {{ decision.policy.t_rework | fmt(2) }}, conformal level alpha = {{ decision.policy.alpha }}, anomaly threshold {{ decision.policy.anomaly_threshold | fmt(3) }}.
+- Thresholds: quarantine at P(SCRAP) >= {{ decision.policy.t_quarantine | fmt(2) }}, extended clean at P(REWORK) >= {{ decision.policy.t_rework | fmt(2) }}, REFER when SCRAP is in the conformal set at alpha = {{ decision.policy.alpha }}, anomaly threshold {{ decision.policy.anomaly_threshold | fmt(3) }}.
 {% for a, cov in decision.coverage.items() %}
 - Conformal sets at alpha = {{ a }}: coverage {{ cov.sets_vs_recorded.coverage | pct }} against recorded labels and {{ cov.sets_vs_truth.coverage | pct }} against the latent truth; mean set size {{ cov.sets_vs_recorded.mean_set_size | fmt(2) }}. ΔP-ratio intervals ± {{ cov.interval_half_width | fmt(3) }} cover {{ cov.interval_vs_recorded | pct }} of recorded values.
 {% endfor %}

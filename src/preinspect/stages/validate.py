@@ -150,23 +150,34 @@ def run(cfg: Config, run_name: str | None = None) -> Run:
     out["acceptance"] = criteria
     out["timings_s"] = timings
     run_.write_metrics("validate", out)
+    render_validation_report(cfg, run_)
+    for c in criteria:
+        log.info("%s %-28s %s (measured %s)", c["id"], c["name"], c["status"], c["value"])
+    return run_
+
+
+def render_validation_report(cfg: Config, run_: Run) -> None:
+    """Render ``reports/validation_report.md`` from the run's stored metrics."""
+    metrics = run_.read_metrics()
+    out = metrics["validate"]
     prov = run_.read_json("provenance.json")
+    criteria = out["acceptance"]
     context = {
         "run_name": run_.name,
         "profile": cfg["name"],
         "code_version": prov["git"]["commit"],
         "data_version": prov["data_manifest_sha256"] or "",
-        "deployed": deployed,
+        "deployed": cfg["deploy"]["model"],
         "criteria": criteria,
         "passed": sum(c["status"] == "PASS" for c in criteria),
-        "decision": decision,
+        "decision": metrics["evaluate"]["decisions"][cfg["deploy"]["model"]],
         "robustness": out["robustness"],
         "shift": out["domain_shift"],
         "msa": out["msa"],
         "doe": out["doe"],
         "latency": out["latency"],
         "audit": out["audit"],
-        "timings": timings,
+        "timings": out["timings_s"],
     }
     target = reports_dir(cfg)
     render_to_file("validation_report.md.j2", context, target / "validation_report.md")
@@ -175,6 +186,3 @@ def run(cfg: Config, run_name: str | None = None) -> Run:
         if src.exists():
             (target / "figures").mkdir(parents=True, exist_ok=True)
             (target / "figures" / fig).write_bytes(src.read_bytes())
-    for c in criteria:
-        log.info("%s %-28s %s (measured %s)", c["id"], c["name"], c["status"], c["value"])
-    return run_
