@@ -83,7 +83,12 @@ def fit_reference(images: list[tuple[np.ndarray, str, float]], cfg: dict[str, An
             v = np.array([x[s] for x in stats])
             lo, hi = np.percentile(v, q["image_percentiles"])
             span = max(hi - lo, 1e-6)
-            ranges[s] = (float(lo - q["margin"] * span), float(hi + q["margin"] * span))
+            lo, hi = lo - q["margin"] * span, hi + q["margin"] * span
+            if s in ("dark_area", "bright_area"):
+                # Training faces can be entirely free of extreme pixels; an area
+                # smaller than this floor is too small to hide a defect.
+                hi = max(hi, q["min_area"])
+            ranges[s] = (float(lo), float(hi))
         reference["pixel_bounds"][light] = bounds
         reference["ranges"][light] = ranges
     return reference

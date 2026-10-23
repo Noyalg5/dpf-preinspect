@@ -11,7 +11,7 @@ No. Every unit, image, curve and label comes from the simulator in `src/preinspe
 No. Parameters were set for plausible class balance and defect prevalence before training (ADR-006), and later changes would bump the version and re-run everything. Some results are unfavourable and are reported as such (for example the acceptance criteria that fail).
 
 **Which approach wins?**
-{{ cmp.best.label }} has the highest test macro-F1 ({{ cmp.best.macro_f1.mean | fmt }}). The deployed concept route differs from the end-to-end network by {{ cmp.concept_minus_e2e | fmt }} macro-F1. At the safety-constrained operating point, the deployed model refers {{ d.rates.share_REFER | pct }} of units{% if cmp.deployed_fewest_referrals %}, fewer than any other approach{% endif %}.
+{{ cmp.best.label }} has the highest test macro-F1 ({{ cmp.best.macro_f1.mean | fmt }}). The deployed concept route differs from the end-to-end network by {{ cmp.concept_minus_e2e | fmt }} macro-F1. At its cost-optimal operating point, the deployed model refers {{ d.rates.share_REFER | pct }} of units{% if cmp.deployed_fewest_referrals %}, fewer than any other approach{% endif %}.
 
 **Why deploy the concept route rather than the end-to-end network?**
 Its inputs are physical measurements (crack length, missing plugs, outlet soot, flow restriction against weight gain), so every decision has a rationale an inspector can check. Onboarding a new line only requires adapting the perception model. Its explanations can be tested against ground truth. The end-to-end network is kept as a challenger.

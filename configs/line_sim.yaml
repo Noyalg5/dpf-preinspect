@@ -25,3 +25,4 @@ tornado:
   arrivals_per_day: [45, 66]
   standard_clean_cost: [40.0, 70.0]
   wrongful_scrap_value: [400.0, 900.0]
+  refer_false_scrap: [0.0, 0.10]

@@ -500,6 +500,7 @@ service:
 quality:
   train_images: 400
   area_median_px: 5
+  min_area: 0.005           # obstructed or glaring share of the face always tolerated
   pixel_percentiles: [0.1, 99.9]
   image_percentiles: [0.5, 99.5]
   margin: 0.25

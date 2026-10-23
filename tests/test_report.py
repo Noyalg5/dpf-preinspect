@@ -15,6 +15,7 @@ def test_simulate_and_render_documents(tiny_data, tiny_run) -> None:
     readme = (docs.parent / "README.md").read_text()
     assert "synthetic" in readme and "| Metadata only |" in readme
     for name in (
+        "acceptance_test_plan",
         "technical_report",
         "model_card",
         "faq",

@@ -26,6 +26,7 @@ RUN_FIGURES = (
     "tornado.png",
 )
 DOCS = (
+    "acceptance_test_plan",
     "technical_report",
     "model_card",
     "faq",

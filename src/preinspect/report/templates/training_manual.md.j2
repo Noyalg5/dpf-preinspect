@@ -82,7 +82,7 @@ Never edit thresholds in code. Change the cost assumptions or constraints in `co
 | Confidence level of the plausible-outcome set | {{ (100 * (1 - p.alpha)) | fmt(0) }} % |
 | Unexplained-anomaly threshold | {{ p.anomaly_threshold | fmt(2) }} |
 | Wrongful-scrap cap (constraint) | {{ costs.policy.wrongful_scrap_cap.value | pct }} |
-| Minimum scrap capture (constraint) | {{ costs.policy.min_scrap_capture.value | pct }} |
+| Minimum scrap capture (optional constraint; 0 = off) | {{ costs.policy.min_scrap_capture.value | pct }} |
 
 ### B4. Responding to drift alerts
 

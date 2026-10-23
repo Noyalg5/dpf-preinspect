@@ -96,8 +96,8 @@ states the context, the decision and its consequences.
 ## ADR-016 Routing alpha and safety constraints in the cost search
 
 - **Context.** With three classes and imperfect accuracy, 90 % conformal sets contain SCRAP for most units, so REFER-on-ambiguity at a fixed alpha referred almost everything. The acceptance criteria also require a minimum scrap capture.
-- **Decision.** Coverage is reported at the required levels (alpha 0.05 and 0.10), but the alpha used by the REFER rule is chosen with the thresholds by minimising expected cost. Constraints: the wrongful-scrap cap and a minimum scrap capture (both in `configs/costs.yaml`). If both cannot be met, capture is maximised within the cap.
-- **Consequences.** The operating point is explicit about its price in referrals; the threshold search table is saved with every run.
+- **Decision.** Coverage is reported at the required levels (alpha 0.05 and 0.10), but the alpha used by the REFER rule is chosen with the thresholds by minimising expected cost under the wrongful-scrap cap. A minimum scrap capture is available as an optional constraint (`min_scrap_capture`, off by default). It was tried at 90 %: once inspector errors were costed (ADR-026), meeting it with demo-quality perception meant referring nearly every unit at a higher cost than today's process, and it satisfied acceptance criterion AC-02 only by giving up automation. Missed scrap is still caught by today's downstream tests, so capture is an efficiency target for stakeholders to set, not a safety constraint. AC-08 limits the REFER share so that capture cannot be bought by referring everything.
+- **Consequences.** The operating point states its price in referrals; the threshold search table is saved with every run, and the reports show what 90 % capture would cost.
 
 ## ADR-017 Image-quality gate
 

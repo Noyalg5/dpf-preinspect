@@ -99,6 +99,7 @@ def tornado(
         "arrivals_per_day",
         "standard_clean_cost",
         "wrongful_scrap_value",
+        "refer_false_scrap",
     ):
         result = {}
         for label, value in zip(("low", "high"), t[name], strict=True):
@@ -111,8 +112,10 @@ def tornado(
                 s["arrivals"]["units_per_day"] = value
             elif name == "standard_clean_cost":
                 c["items"]["standard_clean"]["value"] = value
-            else:
+            elif name == "wrongful_scrap_value":
                 c["items"]["wrongful_scrap_value"]["value"] = value
+            else:
+                c["items"]["refer_false_scrap"]["value"] = value
             result[label] = (value, saving(s, c, mix, m, reps, seed))
         rows.append(
             {

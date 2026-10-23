@@ -66,6 +66,6 @@ policy:
     unit: fraction of non-scrap units routed to QUARANTINE
     note: "assumption: operating constraint to agree with quality"
   min_scrap_capture:
-    value: 0.90
+    value: 0.0
     unit: fraction of true scrap units routed to QUARANTINE or REFER
-    note: "assumption: safety requirement mirroring acceptance criterion AC-02"
+    note: "assumption: optional constraint, 0 disables it; missed scrap is still caught by today's downstream tests, so this is an efficiency target, not a safety one"

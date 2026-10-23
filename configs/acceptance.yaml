@@ -10,7 +10,7 @@ criteria:
     target: 0.02
   AC-02:
     name: SCRAP capture
-    description: Share of true SCRAP units routed to QUARANTINE or REFER (not released to cleaning unchecked).
+    description: Share of true SCRAP units routed to QUARANTINE or REFER before cleaning, so they do not consume a clean. Read together with AC-08, since referring everything would satisfy it.
     metric: scrap_capture_rate
     op: ">="
     target: 0.90
@@ -44,3 +44,9 @@ criteria:
     metric: audit_integrity_ok
     op: "=="
     target: true
+  AC-08:
+    name: Inspector workload
+    description: Share of units routed to REFER on the test split; the gate must automate most decisions to be worth having.
+    metric: refer_share
+    op: "<="
+    target: 0.35

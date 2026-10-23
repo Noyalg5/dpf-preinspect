@@ -134,6 +134,7 @@ def run(cfg: Config, run_name: str | None = None) -> Run:
         "coverage_alpha_0_10": decision["coverage"]["0.1"]["sets_vs_recorded"]["coverage"],
         "max_wrong_auto_route_increase": float(rob["unsafe_rate"].max() - clean_unsafe),
         "audit_integrity_ok": out["audit"]["audit_integrity_ok"],
+        "refer_share": decision["rates"]["share_REFER"],
     }
     evidence = {
         "AC-01": "Decisions on the test split",
@@ -143,6 +144,7 @@ def run(cfg: Config, run_name: str | None = None) -> Run:
         "AC-05": "Decisions on the test split",
         "AC-06": "Robustness",
         "AC-07": "Audit trail",
+        "AC-08": "Decisions on the test split",
     }
     criteria = evaluate_criteria(load_aux("acceptance"), values, evidence)
     out["acceptance"] = criteria

@@ -102,7 +102,32 @@ def build_context(cfg: Config, run: Run) -> dict[str, Any]:
         "budget": resolution_budget(cfg["station"]).to_dict("records"),
         "sample_sizes": sample_sizes(_safe(ddir / "stats.json")),
         "gates": fusion_gates(run),
+        "tradeoff": capture_tradeoff(run, load_aux("costs")),
     }
+
+
+def capture_tradeoff(run: Run, costs: dict) -> dict | None:
+    """Chosen policy against the cheapest one reaching 90 % scrap capture (calibration data)."""
+    import pandas as pd
+
+    path = run.path / "tables" / "threshold_search.csv"
+    policy = _safe(run.path / "models" / "policy.json")
+    if not path.exists() or policy is None:
+        return None
+    search = pd.read_csv(path)
+    cap = costs["policy"]["wrongful_scrap_cap"]["value"]
+    chosen = (
+        search[
+            (search["t_quarantine"] == policy["t_quarantine"])
+            & (search["t_rework"] == policy["t_rework"])
+            & (search["alpha"] == policy["alpha"])
+        ]
+        .iloc[0]
+        .to_dict()
+    )
+    ok = search[(search["wrongful_scrap_rate"] <= cap) & (search["scrap_capture_rate"] >= 0.9)]
+    target = ok.loc[ok["cost"].idxmin()].to_dict() if len(ok) else None
+    return {"chosen": chosen, "capture90": target}
 
 
 def fusion_gates(run: Run) -> dict[str, float] | None:

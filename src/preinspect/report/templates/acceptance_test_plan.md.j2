@@ -1,0 +1,40 @@
+# Acceptance test plan
+
+Criteria and targets are rendered from `configs/acceptance.yaml` (status: **{{ acceptance.status }}**). The targets are illustrative and must be agreed with quality, operations and IT/OT before a pilot. `make validate` evaluates every criterion and writes `reports/validation_report.md`, which records PASS or FAIL against these targets with links to the evidence.
+
+{% set methods = {
+  "AC-01": "Route every test unit with the deployed policy; divide the serviceable units (true PASS or REWORK) routed to QUARANTINE by all serviceable units.",
+  "AC-02": "Route every test unit; divide the true SCRAP units routed to QUARANTINE or REFER by all true SCRAP units. Read with AC-08.",
+  "AC-03": "Time the full inspection path per unit (JPEG decode, inference, decision, rationale) on CPU, on the deployed runtime, after warm-up; report the 95th percentile.",
+  "AC-04": "Re-image each MSA unit twice with seating, exposure and noise jitter (and re-measure its flow curve); count the units whose route is the same on both trials.",
+  "AC-05": "Fit conformal sets on the conformal half of the calibration split; on the test split, count the units whose recorded outcome lies in its 90 % set.",
+  "AC-06": "Apply each corruption at five severities to a stratified test sample; compute the rate of unsafe automatic routes (wrongful quarantine or unchecked scrap); report the largest increase over clean inputs.",
+  "AC-07": "Log decisions to a fresh audit trail and verify it; alter records directly in the database and verify again. Pass only if the clean chain verifies and the tampered one is detected.",
+  "AC-08": "Route every test unit; divide the units routed to REFER by all units.",
+} %}
+| ID | Criterion | Requirement | Target | Method | Evidence |
+|---|---|---|---|---|---|
+{% for cid, c in acceptance.criteria.items() %}
+| {{ cid }} | {{ c.name }} | {{ c.description }} | `{{ c.metric }}` {{ c.op }} {{ c.target | fmt }} | {{ methods.get(cid, "See the validation report.") }} | `reports/validation_report.md` |
+{% endfor %}
+
+## Test environment
+
+- Data: the `{{ profile }}` profile of the synthetic dataset (generator v{{ generator_version }}); the chronological test split, the MSA subset and corrupted copies of test images. A real pilot repeats the tests on real units under `docs/real_data_plan.md`.
+- Software: the run folder under test (code commit, data manifest hash and configuration recorded in its provenance).
+- Hardware: for AC-03, the station's edge PC; the prototype measures the development laptop's CPU.
+
+## Procedure
+
+1. `make data`, `make train` and `make evaluate` for the profile, or reuse an approved run.
+2. `make validate`: runs the studies and evaluates the criteria.
+3. Review `reports/validation_report.md` with quality. Any FAIL is either fixed and retested or accepted as a signed deviation with a mitigation and an owner.
+
+## Sign-off
+
+| Role | Name | Decision | Date |
+|---|---|---|---|
+| Quality engineer | | | |
+| Operations manager | | | |
+| IT/OT | | | |
+| Company supervisor | | | |
