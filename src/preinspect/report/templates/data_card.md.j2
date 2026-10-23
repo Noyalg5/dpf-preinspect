@@ -1,0 +1,84 @@
+# Data card: synthetic DPF pre-inspection dataset
+
+> **Synthetic data, generated locally.** Every unit, image, flow curve and label below comes from the virtual inspection cell in `src/preinspect/synth/`. It demonstrates methods; it says nothing about the real-world prevalence of defects or the performance of any real system.
+
+Rendered from `data/{{ s.profile }}/stats.json` (profile `{{ s.profile }}`, generator v{{ s.generator_version }}, seed {{ s.seed }}). Regenerate with `make data CONFIG={{ s.profile }}`.
+
+## Purpose
+
+Training and evaluating a pre-inspection system that predicts the downstream cleaning outcome (PASS, REWORK, SCRAP) of used diesel particulate filters from two face images, an incoming flow-bench curve and service metadata. The physical assumptions are in `docs/domain_primer.md`.
+
+## Composition
+
+- Units: {{ s.n_units | fmt }}; records after fault injection: {{ s.n_records | fmt }} (duplicate bookings add records).
+- Records accepted by the validation gate: {{ s.validation.n_accepted | fmt }}; quarantined: {{ s.validation.n_quarantined_records | fmt }}; temperature fields blanked: {{ s.validation.n_fields_blanked | fmt }}.
+- Files: {{ s.n_files | fmt }}, each listed with its SHA-256 in `manifest.json`. Images {{ (s.bytes.images / 1e6) | fmt(1) }} MB, masks {{ (s.bytes.masks / 1e6) | fmt(1) }} MB.
+
+### Recorded disposition by split (accepted records)
+
+| Split | PASS | REWORK | SCRAP |
+|---|---|---|---|
+{% for split, row in s.disposition_by_split.items() | sort %}
+| {{ split }} | {{ row.get("PASS", 0) | fmt }} | {{ row.get("REWORK", 0) | fmt }} | {{ row.get("SCRAP", 0) | fmt }} |
+{% endfor %}
+
+- **train / calib / test**: one population split chronologically by arrival date, with no unit in more than one split.
+- **novel**: units with thermal melt, a defect class that appears nowhere else. They arrive during the test period and test the anomaly guard.
+- **shift**: a later product line with an unseen cell density imaged by a different camera profile. It is used for the domain-shift and commissioning study.
+
+## Modalities
+
+| Modality | Content |
+|---|---|
+| Face images | Inlet and outlet faces, {{ s.image_size }} x {{ s.image_size }} px RGB JPEG. Lighting mix (inlet): {% for k, v in s.lighting_inlet.items() %}{{ k }} {{ v }}{{ ", " if not loop.last }}{% endfor %}. |
+| Defect masks | Per-pixel bitmask, one bit per class: crack, chip, missing plug, face plugging, stain, melt, outlet soot, debris. |
+| Flow curve | Pressure drop (kPa) at 8 flow rates (m³/s), with occasional sensor dropouts. |
+| Metadata | Material, cell density (cpsi; 1 cpsi = 0.155 cells/cm²), diameter and length (mm), application, operating hours, active-regeneration count, maximum regeneration temperature (°C, missing on {{ s.max_regen_temp_missing_share | pct }} of accepted records), weight gain (g), previous cleans. |
+| Labels | Recorded downstream results: post-clean ΔP ratio, integrity pass/fail, disposition. |
+| Latent truth | Soot and ash load, glazing, internal cracks, bypass fraction and true outcome. Used for evaluation and explanation tests only, never as a model input. |
+
+## Defects and nuisances
+
+Units with at least one visible instance of each class (accepted records):
+
+| Split | {% for c in s.image_defect_share %}{{ c.replace("_", " ") }} | {% endfor %}
+
+|---|{% for c in s.image_defect_share %}---|{% endfor %}
+
+{% for split, row in s.defect_units_by_split.items() | sort %}
+| {{ split }} | {% for c in s.image_defect_share %}{{ row[c] | fmt }} | {% endfor %}
+
+{% endfor %}
+
+- Share of accepted units with no visible defect: {{ s.defect_free_share | pct }}. These units feed the anomaly guard's memory bank.
+- Nuisances that must not be called defects, counted over all images: dust {{ s.nuisance_counts.dust | fmt }}, marker ink {{ s.nuisance_counts.marker | fmt }}, specular reflections {{ s.nuisance_counts.reflection | fmt }}, clamp occlusion {{ s.nuisance_counts.clamp | fmt }}. Lighting gradients, exposure, white balance, noise, blur and seating offset vary on every image.
+
+![Gallery](../reports/figures/gallery.png)
+
+## Data-quality faults (injected on purpose)
+
+| Fault | Injected | Caught by check |
+|---|---|---|
+{% set mapping = {"missing_value": "MISSING_REQUIRED", "out_of_range": "OUT_OF_RANGE", "duplicate_id": "DUPLICATE_ID", "unit_mixup_f": "PROBABLE_FAHRENHEIT", "label_flip": "DISPOSITION_MISMATCH"} %}
+{% for fault, n in s.faults_injected.items() | sort %}
+| {{ fault }} | {{ n | fmt }} | `{{ mapping[fault] }}` ({{ s.validation.by_check.get(mapping[fault], 0) | fmt }} records flagged) |
+{% endfor %}
+| sensor dropouts (more than 2 points) | from the flow simulator | `FLOW_DROPOUTS` ({{ s.validation.by_check.get("FLOW_DROPOUTS", 0) | fmt }} records flagged) |
+
+Flagged counts can exceed injected counts. A duplicate booking flags both records, and a genuine extreme regeneration temperature is indistinguishable from a Fahrenheit slip, so its field is also blanked.
+
+## Label quality
+
+- Recorded dispositions disagree with the latent true outcome on {{ s.label_vs_truth_disagreement | pct }} of accepted records. This is downstream test noise near the specification limit; it is irreducible and cannot be detected from the record. Headline metrics use the true outcome; training uses the recorded label.
+- Three simulated inspectors label {{ s.msa_units }} test units twice each for the measurement system analysis:
+{% for name, bias in s.inspectors.items() %}
+  - Inspector {{ name }}: {{ bias }}.
+{% endfor %}
+
+## Simplifications and intended use
+
+- Faces have about 30 to 50 cells across, not the 150 to 250 of a real filter; see the resolution budget in `docs/system_design.md`.
+- Relationships between latent condition and observations are monotone surrogates with parameters chosen for plausibility, not fitted to field data.
+- Intended use: method development, testing, teaching and demonstration. Not for estimating real defect rates, costs or savings.
+
+Generation time for this profile: {{ s.generation.seconds_total }} s ({{ s.generation.workers }} worker processes).

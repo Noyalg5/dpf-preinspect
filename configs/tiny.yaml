@@ -5,3 +5,6 @@ dataset_name: tiny
 num_workers: 1
 generator:
   image_size: 128
+  supersample: 1
+  n_units: {main: 100, novel: 10, shift: 20}
+  msa_units: 12

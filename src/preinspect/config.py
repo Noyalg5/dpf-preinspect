@@ -129,3 +129,9 @@ def reports_dir(cfg: Config) -> Path:
     """Return the folder that rendered reports are written to."""
     root = Path(cfg["paths"]["reports_root"])
     return root if root.is_absolute() else project_root() / root
+
+
+def docs_dir(cfg: Config) -> Path:
+    """Return the folder that rendered documentation is written to."""
+    root = Path(cfg["paths"]["docs_root"])
+    return root if root.is_absolute() else project_root() / root

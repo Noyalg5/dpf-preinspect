@@ -1,0 +1,52 @@
+# Data-quality report: {{ manifest.profile }} dataset
+
+> Synthetic data generated locally by the virtual inspection cell (generator v{{ manifest.generator_version }}, seed {{ manifest.seed }}). It demonstrates the validation method, not the quality of any real data source.
+
+- Validated: {{ status.validated }}
+- Manifest SHA-256: `{{ status.manifest_sha256 }}`
+- Records checked: {{ status.n_records | fmt }}
+
+## 1. Integrity (blocks training if it fails)
+
+**Result: {{ "PASS" if status.integrity_ok else "FAIL" }}.** {{ manifest.files | length | fmt }} files listed in the manifest were re-hashed (SHA-256) and compared; unlisted files and missing schema columns also fail this check.
+
+{% if file_issues %}
+| File | Issue |
+|---|---|
+{% for issue in file_issues[:50] %}
+| `{{ issue.file }}` | {{ issue.issue }} |
+{% endfor %}
+{% else %}
+No missing, altered or unlisted files.
+{% endif %}
+
+## 2. Record and field checks (failing records are quarantined, not dropped)
+
+| Check | Level | Rule | Records flagged |
+|---|---|---|---|
+{% for code, rule in checks.items() %}
+| `{{ code }}` | {{ "field" if code in field_checks else "record" }} | {{ rule }} | {{ status.by_check.get(code, 0) | fmt }} |
+{% endfor %}
+
+- Records quarantined (any record-level check): **{{ status.n_quarantined_records | fmt }}** of {{ status.n_records | fmt }}. A record failing several checks is counted once here and once per check above.
+- Fields blanked for verification at source (record kept): **{{ status.n_fields_blanked | fmt }}**. A temperature above the Fahrenheit threshold could be a unit slip or a genuine extreme regeneration; the record alone cannot tell, so the value is not used.
+- Records accepted: **{{ status.n_accepted | fmt }}**.
+- Non-blocking: {{ status.warnings.flow_points_imputed | fmt }} flow curves have one or two dropouts, which are tolerated (the curve fit uses the remaining points).
+
+Quarantined records are listed with every reason in `validation/quarantine.csv` for review and correction at source. They are excluded from training and evaluation.
+
+### Examples
+
+| Unit | Check | Detail |
+|---|---|---|
+{% for ex in examples %}
+| {{ ex.unit_id }} | `{{ ex.check }}` | {{ ex.detail }} |
+{% endfor %}
+
+## 3. Accepted records by split
+
+| Split | Accepted units |
+|---|---|
+{% for split, n in status.accepted_by_split.items() | sort %}
+| {{ split }} | {{ n | fmt }} |
+{% endfor %}

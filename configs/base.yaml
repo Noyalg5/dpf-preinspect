@@ -1,5 +1,5 @@
 # Base configuration. Profiles (tiny, demo, full) extend this file and
-# override only what differs. Every tunable number lives in config, not code.
+# override only what differs. Every tunable number lives here, not in code.
 name: base
 dataset_name: base
 seed: 20261023
@@ -10,7 +10,286 @@ paths:
   data_root: data
   runs_root: runs
   reports_root: reports
+  docs_root: docs
 
+defect_classes: [crack, chip, missing_plug, face_plugging, stain, melt, outlet_soot, debris]
+outcome_classes: [PASS, REWORK, SCRAP]
+views: [inlet, outlet]
+
+# ---------------------------------------------------------------------------
+# Virtual inspection cell (synthetic data generator). Frozen at v1.0: any
+# change to this section bumps the version and requires re-running everything.
+# ---------------------------------------------------------------------------
 generator:
   version: "1.0"
   image_size: 384
+  supersample: 2
+  fov_mm: 420.0
+  crack_mask_dilate_px: 1
+  mask_area_threshold: 0.3
+  n_units: {main: 2600, novel: 120, shift: 260}
+  splits: {train: 0.60, calib: 0.15, test: 0.25}
+  arrival:
+    start: "2025-01-06"
+    main_days: 540
+    shift_gap_days: 7
+    shift_days: 60
+  msa_units: 50
+
+  substrate:
+    materials: {cordierite: 0.55, sic: 0.45}
+    cell_density_cpsi: {"200": 0.55, "300": 0.45}
+    shift_cell_density_cpsi: 400
+    stylised_cells_per_sqrt_cpsi: 2.4
+    reference_diameter_mm: 267.0
+    diameters_mm: [229.0, 267.0, 286.0, 305.0, 330.0]
+    lengths_mm: [254.0, 305.0, 356.0]
+    sic_segment_cells: 7
+    glaze_mass_gL: 4.0
+    weight_noise_g: 25.0
+
+  applications:
+    urban_bus:        {share: 0.24, hours_median: 7000,  hours_sigma: 0.45, soot_rate: 1.4, ash_rate: 1.0, thermal: 1.2, regen_per_100h: 2.5, oil_risk: 0.10, coolant_risk: 0.04}
+    regional_haulage: {share: 0.26, hours_median: 9000,  hours_sigma: 0.40, soot_rate: 0.7, ash_rate: 0.8, thermal: 0.8, regen_per_100h: 0.6, oil_risk: 0.06, coolant_risk: 0.02}
+    off_highway:      {share: 0.16, hours_median: 6000,  hours_sigma: 0.50, soot_rate: 1.2, ash_rate: 1.2, thermal: 1.1, regen_per_100h: 1.8, oil_risk: 0.12, coolant_risk: 0.05}
+    rail:             {share: 0.10, hours_median: 14000, hours_sigma: 0.35, soot_rate: 0.9, ash_rate: 1.3, thermal: 0.9, regen_per_100h: 1.0, oil_risk: 0.08, coolant_risk: 0.03}
+    marine:           {share: 0.10, hours_median: 12000, hours_sigma: 0.40, soot_rate: 1.0, ash_rate: 1.4, thermal: 0.9, regen_per_100h: 1.2, oil_risk: 0.10, coolant_risk: 0.06}
+    genset:           {share: 0.14, hours_median: 8000,  hours_sigma: 0.50, soot_rate: 1.5, ash_rate: 1.1, thermal: 1.3, regen_per_100h: 2.8, oil_risk: 0.12, coolant_risk: 0.03}
+  drift:
+    share_change: {urban_bus: -0.08, off_highway: 0.08}
+
+  latent:
+    ash_gL_per_1000h: 3.0
+    ash_noise_sigma: 0.30
+    clean_interval_h: 9000.0
+    soot_gamma_shape: 2.0
+    soot_gamma_scale: 2.0
+    soot_max_gL: 14.0
+    regen_temp_mean_c: 600.0
+    regen_temp_per_thermal_c: 60.0
+    regen_temp_sd_c: 35.0
+    uncontrolled_event_rate: 0.10
+    uncontrolled_temp_mean_c: 900.0
+    uncontrolled_temp_sd_c: 110.0
+    regen_temp_cap_c: 1250.0
+    regen_log_sd_c: 12.0
+    max_regen_temp_missing: 0.40
+    crack:
+      intercept: -2.6
+      per_100c_over_700: 1.0
+      cordierite: 0.6
+      per_1000_regens: 0.4
+      ring_off_share_cordierite: 0.55
+      ring_off_share_sic: 0.20
+      visible_share: 0.70
+      through_share: 0.6
+      second_crack: 0.25
+      severity_beta: [1.6, 2.4]
+    missing_plug_mean: 0.12
+    missing_plug_event_mean: 2.5
+    missing_plug_cap: 14
+    chip_prob: 0.12
+    chip_severity_beta: [1.5, 2.5]
+    face_plug_base: 0.12
+    face_plug_per_soot_gL: 0.03
+    face_plug_oil: 0.35
+    face_plug_extent_beta: [1.5, 4.0]
+    face_plug_deposit: {soot: 0.5, ash: 0.3, coke: 0.2}
+    stain_given_contamination: 0.75
+    spurious_stain: 0.04
+    glazing_coolant: [0.45, 1.0]
+    glazing_oil: [0.10, 0.45]
+    glazing_base_beta: [1.0, 25.0]
+    leak_bypass_threshold: 0.05
+    outlet_soot_given_leak: 0.75
+    outlet_soot_extent_base: 0.3
+    outlet_soot_bypass_scale: 0.3
+    spurious_outlet_soot: 0.02
+    spurious_outlet_soot_extent: [0.2, 0.4]
+    debris_prob: 0.07
+    debris_count: [1, 4]
+    internal_crack_severity: [0.2, 0.7]
+    melt_severity: [0.4, 1.0]
+
+  nuisance:
+    dust: 0.35
+    marker: 0.15
+
+  geometry:
+    radial_start_r: [0.05, 0.5]
+    radial_end_r: [0.85, 1.0]
+    radial_points: 10
+    radial_angle_walk_sd: 0.05
+    ring_radius: [0.5, 0.85]
+    ring_span_rad: [1.0, 4.5]
+    ring_points: 16
+    ring_radius_walk_sd: 0.008
+    crack_width_pitch: [0.15, 0.75]
+    plug_cluster_share: 0.6
+    plug_cluster_radius_cells: 4
+    plug_max_r: 0.88
+    chip_half_width_rad: [0.12, 0.5]
+    chip_depth: [0.03, 0.15]
+    shape_harmonics: 3
+    shape_harmonic_amp: 0.18
+    face_plug_centre_max_r: 0.6
+    stain_radius: [0.15, 0.4]
+    stain_opacity: [0.45, 0.8]
+    stain_inlet_share: 0.7
+    melt_radius: [0.15, 0.35]
+    melt_outlet_share: 0.7
+    outlet_soot_radius: [0.2, 0.6]
+    outlet_soot_density: [0.45, 0.9]
+    debris_size: [0.03, 0.08]
+    debris_inlet_share: 0.8
+    dust_count: [60, 400]
+    marker_on_face_share: 0.25
+    marker_radius_face: 0.93
+    marker_radius_can: 1.06
+    plug_cluster_centre_r: 0.7
+    stain_centre_max_r: 0.6
+    melt_centre_max_r: 0.5
+    outlet_soot_centre_max_r: 0.7
+    debris_centre_max_r: 0.85
+
+  flow:
+    q_m3s: [0.03, 0.06, 0.09, 0.12, 0.15, 0.18, 0.21, 0.24]
+    rated_q_m3s: 0.20
+    a0_kpa_s_per_m3: 6.0
+    b0_kpa_s2_per_m6: 30.0
+    cpsi_exponent: 0.3
+    reference_length_mm: 305.0
+    soot_a_per_gL: 0.10
+    ash_a_per_gL: 0.035
+    ash_b_per_gL: 0.02
+    face_plug_a: 1.2
+    glazing_a: 0.4
+    bypass_per_missing_plug: 0.012
+    bypass_per_crack_severity: 0.35
+    bypass_internal_crack: 0.18
+    bypass_melt: 0.10
+    bypass_max: 0.6
+    bypass_exponent: 1.5
+    noise_rel: 0.03
+    noise_abs_kpa: 0.02
+    point_dropout: 0.01
+    sensor_fault_rate: 0.02
+    sensor_fault_points: [3, 5]
+
+  outcome:
+    std_clean_eff: 0.86
+    std_eff_glazing: 0.55
+    std_eff_sd: 0.04
+    ext_recovery: 0.7
+    ext_glazing_block: 0.8
+    dp_per_residual_ash_gL: 0.05
+    dp_glazing: 0.25
+    dp_coke: 0.10
+    dp_melt: 0.5
+    dp_bypass: 0.6
+    dp_noise_sd: 0.015
+    spec_ratio: 1.15
+    crack_fail_severity: 0.35
+    missing_plug_fail: 4
+    chip_fail_severity: 0.6
+    integrity_false_fail: 0.01
+    integrity_false_pass: 0.04
+
+  acquisition:
+    lighting: {diffuse: 0.45, low_angle: 0.35, backlight: 0.20}
+    exposure_ev: [-0.6, 0.6]
+    wb_gain_sd: 0.05
+    blur_sigma_px: [0.0, 0.9]
+    offset_frac_sd: 0.02
+    rotation_deg: [-180.0, 180.0]
+    scale_sd: 0.025
+    clamp_prob: 0.15
+    reflection_prob: 0.25
+    gradient_strength: [0.0, 0.25]
+    backlight_front_fill: 0.25
+    low_angle: {base: 0.15, edge_gain: 1.4, top: 0.10, sobel_scale: 0.3}
+    clamp_inner_r: [0.9, 1.04]
+    clamp_half_width_rad: [0.08, 0.16]
+    reflection_max_r: 0.7
+    reflection_sigma: [0.04, 0.14]
+    reflection_strength: [0.25, 0.7]
+    main_camera: cam_a
+    shift_camera: cam_b
+    cameras:
+      cam_a: {gamma: 2.2, noise_sd: 0.012, read_sd: 0.004, vignette: 0.12, tint: [1.0, 1.0, 1.0], saturation: 1.0, jpeg_quality: 92}
+      cam_b: {gamma: 1.9, noise_sd: 0.020, read_sd: 0.006, vignette: 0.25, tint: [0.94, 1.0, 1.08], saturation: 0.85, jpeg_quality: 85}
+      cam_c: {gamma: 2.4, noise_sd: 0.010, read_sd: 0.004, vignette: 0.18, tint: [1.05, 1.0, 0.95], saturation: 1.1, jpeg_quality: 90}
+
+  appearance:
+    skin_width: 0.025
+    mat_gap: 0.02
+    can_outer: 1.10
+    wall_fraction: 0.16
+    sic_joint_fraction: 0.35
+    inlet_soot_film: [0.15, 0.05]
+    inlet_soot_film_max: 0.7
+    outlet_soot_film_max: 0.08
+    colours:
+      cordierite_wall: [0.80, 0.76, 0.68]
+      cordierite_plug: [0.90, 0.88, 0.83]
+      sic_wall: [0.30, 0.30, 0.32]
+      sic_plug: [0.62, 0.61, 0.58]
+      sic_joint: [0.72, 0.70, 0.66]
+      channel: [0.05, 0.045, 0.04]
+      skin_cordierite: [0.74, 0.71, 0.64]
+      skin_sic: [0.36, 0.36, 0.37]
+      mat: [0.12, 0.11, 0.10]
+      can: [0.55, 0.56, 0.58]
+      fixture: [0.18, 0.19, 0.21]
+      soot: [0.05, 0.05, 0.05]
+      ash: [0.86, 0.84, 0.80]
+      coke: [0.16, 0.11, 0.07]
+      oil: [0.50, 0.36, 0.14]
+      coolant: [0.55, 0.72, 0.58]
+      melt: [0.40, 0.28, 0.20]
+      clamp: [0.10, 0.10, 0.11]
+      ink_blue: [0.10, 0.18, 0.60]
+      ink_black: [0.05, 0.05, 0.06]
+      dust: [0.82, 0.80, 0.76]
+      debris_metal: [0.75, 0.76, 0.80]
+      debris_fibre: [0.88, 0.86, 0.70]
+
+  faults:
+    missing_value: 0.02
+    out_of_range: 0.01
+    duplicate_id: 0.006
+    unit_mixup_f: 0.012
+    label_flip: 0.03
+
+  inspectors:
+    A: {bias: "misses hairline cracks", crack_min_severity: 0.40, flip: 0.04, stain_reject: 0.0, drift: 0.0}
+    B: {bias: "over-rejects stains", crack_min_severity: 0.12, flip: 0.05, stain_reject: 0.6, drift: 0.0}
+    C: {bias: "drifts late in a shift", crack_min_severity: 0.15, flip: 0.03, stain_reject: 0.0, drift: 0.30}
+  inspector_rules:
+    face_plug_rework: 0.15
+    outlet_soot_scrap: 0.10
+    missing_plug_scrap: 4
+    chip_scrap: 0.6
+    load_rework_g_per_l: 16.0
+    perception_sd: 0.15
+    drift_threshold_gain: 2.0
+    drift_slip_gain: 3.0
+
+# Data-validation gate: plausible ranges and policies.
+validation:
+  required: [unit_id, arrival_date, material, cell_density_cpsi, diameter_mm, length_mm,
+             application, operating_hours, active_regen_count, weight_gain_g, previous_cleans]
+  optional: [max_regen_temp_c]
+  ranges:
+    cell_density_cpsi: [50, 600]
+    diameter_mm: [150, 400]
+    length_mm: [150, 450]
+    operating_hours: [0, 80000]
+    active_regen_count: [0, 20000]
+    max_regen_temp_c: [250, 1300]
+    weight_gain_g: [-100, 2500]
+    previous_cleans: [0, 20]
+  fahrenheit_suspect_above: 1000.0
+  max_flow_dropouts: 2
+  disposition_tolerance: 0.0
+  image_min_std: 2.0
