@@ -2,7 +2,7 @@
 
 > Synthetic data generated locally by the virtual inspection cell (generator v1.0, seed 20261023). It demonstrates the validation method, not the quality of any real data source.
 
-- Validated: 2026-10-23T02:16:41
+- Validated: 2026-10-23T06:22:50
 - Manifest SHA-256: `93ee938bc98ead8368081a23574a83aeeae0b83c31f577cc70c9a7c6b243ad73`
 - Records checked: 1,308
 

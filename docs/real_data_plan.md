@@ -1,0 +1,51 @@
+# Plan for real data
+
+How to move from the simulator to real filters. Sample sizes below are computed from the scrap prevalence in the current synthetic test split (26.0 %); replace it with the line's real figure.
+
+## 1. Capture protocol
+
+- **Population.** Every unit arriving at goods-in during the capture period, not a curated selection, so prevalence and difficulty are realistic. Stratify by application and material if volumes are uneven.
+- **Per unit.** Unit ID and part number; service history as available; weight; incoming flow curve; inlet and outlet images under each lighting mode of the station; a photograph of the label and can for traceability.
+- **Downstream truth.** Post-clean pressure-drop ratio, integrity result and disposition from today's process, plus the extended-clean result for REWORK units. For scrap units, a short teardown note (crack, melt, plug loss) where possible.
+- **Controls.** A reference unit imaged at every shift start (detects camera, lighting or fixture drift); calibration of the scale and flow bench logged.
+- **Data handling.** Images, measurements and test results linked by unit ID, hashed at capture into a manifest, stored on a managed share; no personal data beyond operator IDs.
+
+## 2. Labelling guide
+
+- Classes as in `defect_classes`, with photographed examples and counter-examples (dust, marker ink, reflections) agreed with quality.
+- Polygon masks for area defects; polylines for cracks with a fixed tolerance; points for missing plugs.
+- Two labellers per image for an agreement subset; disagreements adjudicated by a third.
+
+## 3. Inter-rater study
+
+Following the AIAG MSA attribute approach: at least 50 units chosen to span all outcomes and borderline cases, three inspectors, two trials each in random order, with the downstream test as the standard. Report within-appraiser, between-appraiser and appraiser-versus-standard agreement, Cohen's and Fleiss' kappa. The same study sets the human baseline the system must match or exceed.
+
+## 4. Sample size
+
+To estimate SCRAP recall to within ± h with 95 % confidence (normal approximation):
+
+| Expected recall | Half-width h | Scrap units needed | Total units at this prevalence |
+|---|---|---|---|
+| 0.85 | ± 0.05 | 196 | 755 |
+| 0.85 | ± 0.03 | 545 | 2,098 |
+| 0.90 | ± 0.05 | 139 | 535 |
+| 0.90 | ± 0.03 | 385 | 1,482 |
+| 0.95 | ± 0.05 | 73 | 281 |
+| 0.95 | ± 0.03 | 203 | 782 |
+
+Training needs more data than evaluation. As a starting assumption, to revisit after the first training round, plan for several hundred labelled faces per defect class. Conformal coverage is guaranteed for any calibration-set size, but its sampling variability shrinks with size, so a few hundred calibration units is a sensible target.
+
+## 5. Shop-floor pilot design
+
+1. **Shadow mode** (no effect on the line): the gate inspects every unit; routes are logged but not acted on; downstream results are joined afterwards. Compare against today's outcomes using the acceptance criteria.
+2. **Assisted mode:** operators see recommendations and accept or override; QUARANTINE still goes through downstream tests during the pilot.
+3. **Live mode** for agreed routes only (for example EXTENDED_CLEAN), with weekly review of overrides, drift and calibration.
+
+Success criteria are the acceptance criteria in `configs/acceptance.yaml`, agreed with quality and operations before the pilot starts.
+
+## 6. Closing the sim-to-real gap
+
+- Re-parameterise the simulator from real data (cell density, wall thickness, lighting, defect statistics) and use it for pre-training and for stress tests the line cannot provide.
+- Fine-tune perception on real labelled faces; keep the concept route so the outcome model sees physical measurements in either world.
+- Compare synthetic and real distributions of every concept and of the image embedding (PSI); a large gap shows where the simulator needs work.
+- Keep the anomaly guard trained on real defect-free faces only.

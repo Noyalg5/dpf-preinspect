@@ -83,4 +83,4 @@ Flagged counts can exceed injected counts. A duplicate booking flags both record
 - Relationships between latent condition and observations are monotone surrogates with parameters chosen for plausibility, not fitted to field data.
 - Intended use: method development, testing, teaching and demonstration. Not for estimating real defect rates, costs or savings.
 
-Generation time for this profile: 128.7 s (4 worker processes).
+Generation time for this profile: 40.8 s (4 worker processes).

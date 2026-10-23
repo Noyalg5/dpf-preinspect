@@ -1,0 +1,111 @@
+# Training manual
+
+For station operators, inspectors and the engineers who maintain the system. Thresholds below are rendered from the deployed policy of run `20261023-062255_demo`; they change only through configuration and re-validation.
+
+> Research prototype trained on synthetic data. Use only for training and trials until it has been validated on real filters.
+
+## Part A: Operator guide
+
+### A1. Station workflow
+
+1. Scan or type the unit ID and confirm the part number. Check the service history has loaded.
+2. Weigh the unit on the station scale.
+3. Connect the flow-bench adaptor and run the incoming flow curve (8 flow points).
+4. Seat the unit in the cradle **inlet face up**. Check nothing (clamps, gloves, tools, labels) covers the face. Capture the inlet image.
+5. Turn the unit over and capture the outlet image.
+6. Press **Inspect** and read the result (section A2). Then press **Accept**, or **Override** with a reason (section A3).
+7. Label the unit with its route and move it to the matching lane.
+
+### A2. Reading the screen
+
+| Item | What it tells you |
+|---|---|
+| Route banner | What to do next. A red banner is REFER, amber is QUARANTINE, green is PROCEED or EXTENDED_CLEAN. |
+| Rationale | One plain-English paragraph explaining why, built from measured values (for example "Crack indication on the inlet face at 2 o'clock, about 40 mm"). |
+| Outcome probabilities | How likely each downstream result is. |
+| Plausible outcomes | The outcomes the system cannot rule out at its confidence level. If SCRAP is among them, the unit is referred. |
+| ΔP ratio and interval | Predicted pressure drop after a standard clean, relative to a new part, with a 90 % range. |
+| Unexplained anomaly | Something on a face that is neither normal nor a known defect. Above the threshold the unit is referred. |
+| Overlays | Defect outlines show what the system measured; the anomaly heatmap shows where it is unsure. |
+| Input issues | A problem with the data or images, for example a blank field, a temperature that may be in Fahrenheit, or a blurred, dark or obstructed image. |
+
+### A3. When and how to override
+
+Override when you can see something the system has missed or misread. For example:
+- a crack the overlay did not outline;
+- a defect outline that is actually dust, marker ink or a reflection;
+- a stain that wipes off;
+- a unit seated badly or an image taken through an obstruction (re-image instead of overriding where possible).
+
+Choose the route you believe is right and write a short, specific reason (at least 5 characters): "hairline crack at 4 o'clock visible under torch", not "wrong". Every override is recorded with your operator ID and reviewed by quality. Overriding is expected and useful; it is how the system is corrected and retrained.
+
+### A4. Escalation
+
+| Situation | Action |
+|---|---|
+| REFER | Hand to the shift inspector with the screen still open. |
+| QUARANTINE | Move to the quarantine rack. A quality engineer confirms scrap; the system never scraps a unit. |
+| Input issue | Correct the data or re-image, then inspect again. |
+| Several REFERs in a row, or the dashboard shows an alert | Tell the shift lead; the camera, lighting or fixture may have changed. |
+| Damaged, dropped or heavy unit | Follow the manual-handling procedure; do not image a unit that is not safely seated. |
+
+## Part B: Engineer guide
+
+### B1. Retraining and release
+
+```bash
+make data CONFIG=full      # regenerate or ingest data; the validation gate must pass integrity checks
+make train CONFIG=full     # creates runs/<timestamp>_full with provenance
+make evaluate CONFIG=full  # calibration, policy, explanations
+make validate CONFIG=full  # acceptance tests -> reports/validation_report.md
+make report CONFIG=full    # renders README and docs from the run
+```
+
+Release gates: every acceptance criterion in `configs/acceptance.yaml` is PASS (or has a signed-off deviation); the validation report is reviewed by quality; the run's provenance (commit, data manifest hash) is recorded in the change log; the audit chain verifies (`preinspect audit verify`).
+
+### B2. Adding a defect class
+
+1. Describe the defect physically in `docs/domain_primer.md` and agree a labelling guide.
+2. Add it to `defect_classes` (a single image mask holds at most eight classes; more need a second mask file) and, if it should be detected, to `perception.classes`.
+3. Collect and label examples; check the inter-rater agreement.
+4. Retrain, then confirm the new class does not raise the wrongful-scrap rate of existing ones.
+
+### B3. Changing thresholds
+
+Never edit thresholds in code. Change the cost assumptions or constraints in `configs/costs.yaml` (wrongful-scrap cap, minimum scrap capture), re-run `make evaluate` and `make validate`, and review the new operating point. Current deployed values:
+
+| Setting | Value |
+|---|---|
+| Quarantine when P(SCRAP) ≥ | 0.70 |
+| Extended clean when P(REWORK) ≥ | 0.20 |
+| Confidence level of the plausible-outcome set | 50 % |
+| Unexplained-anomaly threshold | 3.57 |
+| Wrongful-scrap cap (constraint) | 2.0 % |
+| Minimum scrap capture (optional constraint; 0 = off) | 0.0 % |
+
+### B4. Responding to drift alerts
+
+| Signal | Likely cause | Response |
+|---|---|---|
+| Metadata PSI above 0.25 | Customer or application mix changed | Check the outcome mix; retrain if it persists |
+| Embedding PSI above 0.25 | Camera, lens, lighting or fixture changed | Inspect the station; re-run the commissioning procedure |
+| p-chart point outside limits | Sudden change in REFER or QUARANTINE share | Check the last batch of images and inputs |
+| Calibration gap growing | Model no longer matches downstream results | Recalibrate on recent results; retrain if needed |
+
+### B5. Commissioning a new product line
+
+1. Capture and label about 50 units of the new line, including some with defects.
+2. Fine-tune the perception models on their masks and extend the anomaly memory banks with their defect-free faces.
+3. Keep the outcome model, calibration and thresholds; run the next units in shadow mode and compare with downstream tests.
+4. Release only when the acceptance criteria hold on the new line.
+
+## Part C: Quick reference
+
+| Route | Meaning | Operator action |
+|---|---|---|
+| PROCEED | Standard clean expected to pass | Accept, send to standard clean |
+| EXTENDED_CLEAN | Heavy ash or glazing expected | Accept, send to extended clean |
+| QUARANTINE | Scrap likely (P(SCRAP) ≥ 0.70) | Quarantine rack; quality confirms; never scrap directly |
+| REFER | Uncertain, unrecognised or invalid input | Hand to inspector |
+
+**Always:** check the face is unobstructed before imaging, read the rationale before accepting, and give a specific reason for every override.

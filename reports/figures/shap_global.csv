@@ -1,0 +1,16 @@
+index,mean_abs_shap
+meta_max_regen_temp_c,0.013830214393895746
+lrn_inlet_crack_peak,0.01392775579342182
+lrn_inlet_outlet_soot_area,0.014281490546987602
+flow_fit_rms,0.014577919870980399
+lrn_inlet_face_plugging_peak,0.01647910357861481
+anom_outlet_max,0.016626760119137874
+lrn_inlet_stain_area,0.0170526112511129
+lrn_inlet_missing_plug_peak,0.017759753528513566
+lrn_outlet_outlet_soot_peak,0.018016362220902173
+lrn_inlet_debris_peak,0.025160844392250394
+meta_weight_gain_g,0.02780317748476082
+meta_load_g_per_l,0.03634255501372223
+lrn_inlet_stain_presence,0.0418261583283967
+xmod_load_residual,0.05500891353710474
+lrn_outlet_outlet_soot_presence,0.10195947273936534
