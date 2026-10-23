@@ -8,3 +8,39 @@ generator:
   supersample: 1
   n_units: {main: 100, novel: 10, shift: 20}
   msa_units: 12
+perception:
+  epochs: 1
+  batch_size: 8
+  crop: 96
+  infer_batch: 16
+anomaly:
+  patches_per_image: 50
+  coreset: 400
+fusion:
+  image_size: 96
+  epochs: 1
+explain:
+  n_units: 4
+  n_deletion: 2
+  ig_units: 4
+  shap_background: 10
+  shap_units: 8
+routing:
+  t_quarantine_grid: [0.5, 0.9, 0.2]
+  t_rework_grid: [0.3, 0.7, 0.2]
+  alpha_grid: [0.1, 0.5]
+campaign:
+  robustness:
+    n_units: 4
+    include: [blur, occlusion]
+  domain_shift:
+    commissioning_units: 6
+    finetune_epochs: 1
+  msa:
+    grr_units: 3
+    grr_trials: 2
+  doe:
+    replicates: 1
+    images_per_class: 3
+  latency:
+    units: 2

@@ -56,23 +56,27 @@ def flow_features(units: pd.DataFrame, signals: np.ndarray, gcfg: dict[str, Any]
         Indexed like ``units``: ``flow_a``, ``flow_b``, ``flow_dp_rated_kpa``,
         ``flow_dp_ratio``, ``flow_fit_rms``, ``flow_dropouts``.
     """
-    q_rated = gcfg["flow"]["rated_q_m3s"]
-    rows = []
-    for _, u in units.iterrows():
-        q, dp = signals[int(u["signal_index"])]
-        a, b, rms, n_valid = fit_curve(q.astype(float), dp.astype(float))
-        dp_rated = a * q_rated + b * q_rated**2
-        rows.append(
-            {
-                "flow_a": a,
-                "flow_b": b,
-                "flow_dp_rated_kpa": dp_rated,
-                "flow_dp_ratio": dp_rated / new_part_dp_kpa(gcfg, u.to_dict()),
-                "flow_fit_rms": rms,
-                "flow_dropouts": float(q.size - n_valid),
-            }
-        )
+    rows = [
+        curve_features(gcfg, u.to_dict(), signals[int(u["signal_index"])])
+        for _, u in units.iterrows()
+    ]
     return pd.DataFrame(rows, index=units.index)
+
+
+def curve_features(gcfg: dict[str, Any], meta: dict[str, Any], curve: np.ndarray) -> dict:
+    """Flow features for one unit's ``(2, n_points)`` curve."""
+    q, dp = curve[0].astype(float), curve[1].astype(float)
+    a, b, rms, n_valid = fit_curve(q, dp)
+    q_rated = gcfg["flow"]["rated_q_m3s"]
+    dp_rated = a * q_rated + b * q_rated**2
+    return {
+        "flow_a": a,
+        "flow_b": b,
+        "flow_dp_rated_kpa": dp_rated,
+        "flow_dp_ratio": dp_rated / new_part_dp_kpa(gcfg, meta),
+        "flow_fit_rms": rms,
+        "flow_dropouts": float(q.size - n_valid),
+    }
 
 
 class LoadResidual:
@@ -98,3 +102,22 @@ class LoadResidual:
         """Observed minus expected restriction."""
         slope, intercept = self.coef
         return dp_ratio - (slope * load_g_per_l + intercept)
+
+
+def normalised_curve(gcfg: dict[str, Any], meta: dict[str, Any], curve: np.ndarray) -> np.ndarray:
+    """Flow curve divided by the new-part curve of the same geometry.
+
+    Returns
+    -------
+    numpy.ndarray
+        ``(2, n_points)``: row 0 the ratio (0 where missing), row 1 a validity flag.
+    """
+    from preinspect.synth.flow import geometry_factors
+
+    f = gcfg["flow"]
+    q, dp = curve[0].astype(float), curve[1].astype(float)
+    ga, gb = geometry_factors(gcfg, meta)
+    new = f["a0_kpa_s_per_m3"] * ga * q + f["b0_kpa_s2_per_m6"] * gb * q**2
+    valid = np.isfinite(dp)
+    ratio = np.where(valid, dp / new, 0.0)
+    return np.stack([ratio, valid.astype(float)]).astype(np.float32)

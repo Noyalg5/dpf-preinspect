@@ -39,6 +39,10 @@ items:
     value: 0.85
     unit: probability
     note: "assumption: chance an inspector releases a serviceable unit wrongly quarantined"
+  refer_scrap_catch:
+    value: 0.6
+    unit: probability
+    note: "assumption: chance an inspector reviewing a REFER unit recognises true scrap before cleaning"
 energy:
   standard_clean_kwh:
     value: 45.0
@@ -57,3 +61,7 @@ policy:
     value: 0.02
     unit: fraction of non-scrap units routed to QUARANTINE
     note: "assumption: operating constraint to agree with quality"
+  min_scrap_capture:
+    value: 0.90
+    unit: fraction of true scrap units routed to QUARANTINE or REFER
+    note: "assumption: safety requirement mirroring acceptance criterion AC-02"

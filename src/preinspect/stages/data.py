@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 
 from preinspect.config import Config, data_dir
@@ -22,4 +23,6 @@ def run(cfg: Config) -> None:
         raise SystemExit("data failed integrity checks; see validation/data_quality_report.md")
     dataset_stats(cfg)
     gallery(cfg, data_dir(cfg) / "figures" / "gallery.png")
-    log.info("data stage finished in %.1f s", time.perf_counter() - t0)
+    seconds = time.perf_counter() - t0
+    (data_dir(cfg) / "logs" / "stage.json").write_text(json.dumps({"seconds": round(seconds, 1)}))
+    log.info("data stage finished in %.1f s", seconds)

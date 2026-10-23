@@ -60,6 +60,9 @@ def fit_tabular(
     seed : int
         Random state.
     """
+    # A column with no observed value in training carries no information (and
+    # breaks histogram binning), so it is dropped; the model keeps its own list.
+    columns = [c for c in columns if table.loc[train, c].notna().any()]
     X, rows = table.loc[train, columns], table.loc[train]
     clf = HistGradientBoostingClassifier(
         categorical_features="from_dtype", random_state=seed, **tcfg["classifier"]

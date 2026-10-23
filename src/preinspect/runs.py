@@ -75,6 +75,12 @@ class Run:
         allm[stage] = metrics
         (self.path / "metrics.json").write_text(json.dumps(allm, indent=2, default=_jsonable))
 
+    def record_timing(self, stage: str, seconds: float) -> None:
+        """Add a stage's wall-clock duration to ``metrics.json`` under ``timings``."""
+        allm = self.read_metrics()
+        allm.setdefault("timings", {})[stage] = round(seconds, 1)
+        (self.path / "metrics.json").write_text(json.dumps(allm, indent=2, default=_jsonable))
+
     def write_json(self, relpath: str, obj: Any) -> Path:
         """Write a JSON artefact inside the run and return its path."""
         target = self.sub(relpath)

@@ -325,6 +325,197 @@ tabular:
     flow_only: [flow]
     classical_vision: [classical]
     classical_flow_meta: [classical, flow, metadata]
+    flow_meta: [flow, metadata]
+    learned_vision: [learned, anomaly]
+    learned_flow: [learned, anomaly, flow]
+    learned_meta: [learned, anomaly, metadata]
+    learned_flow_meta: [learned, anomaly, flow, metadata]
+
+# Modality ablation of the concept route: vision (V), flow (F), metadata (M).
+ablation:
+  V: learned_vision
+  F: flow_only
+  M: metadata_only
+  VF: learned_flow
+  VM: learned_meta
+  FM: flow_meta
+  VFM: learned_flow_meta
+
+# Rows of the headline table, in order, with the prediction table each uses.
+headline:
+  - {label: Metadata only, model: metadata_only}
+  - {label: Flow only, model: flow_only}
+  - {label: Classical vision, model: classical_vision}
+  - {label: Classical vision + flow + metadata, model: classical_flow_meta}
+  - {label: Learned concepts, model: learned_vision}
+  - {label: Learned concepts + flow + metadata, model: learned_flow_meta}
+  - {label: End-to-end image only, model: e2e_image}
+  - {label: End-to-end all modalities, model: e2e_all}
 
 evaluation:
   ece_bins: 15
+
+# Defect perception (U-Net). Melt is deliberately absent: it is the novel
+# defect the anomaly guard must catch.
+perception:
+  classes: [crack, chip, missing_plug, face_plugging, stain, outlet_soot, debris]
+  pretrained: true
+  folds: 2
+  epochs: 14
+  batch_size: 8
+  crop: 192
+  lr: 5.0e-4
+  weight_decay: 1.0e-4
+  dice_weight: 1.0
+  pos_weight_max: 20.0
+  mask_threshold: 0.5
+  infer_batch: 8
+  augment: {gain: [0.7, 1.3], gamma: [0.8, 1.25], wb: 0.06, gradient: 0.25,
+            blur_prob: 0.2, noise: 0.02}
+
+# PatchCore-style anomaly guard (Roth et al., 2022).
+anomaly:
+  pretrained: true
+  patches_per_image: 150
+  coreset: 5000
+  projection_dim: 128
+  blur_sigma: 4.0
+  explained_dilate_px: 9
+
+# End-to-end fusion network.
+fusion:
+  image_size: 192
+  width: 128
+  pretrained: true
+  epochs: 12
+  batch_size: 8
+  lr: 1.0e-3
+  lr_encoder: 2.0e-4
+  weight_decay: 1.0e-4
+  dp_weight: 2.0
+  integrity_weight: 0.5
+  seeds: 1
+  variants:
+    e2e_image: [image]
+    e2e_all: [image, flow, metadata]
+
+# Probability calibration, fitted on half of the calibration split; the other
+# half is kept for conformal prediction.
+calibration:
+  boosting: auto           # auto = choose by cross-validated log-loss on calibration-fit units
+  candidates: [sigmoid, isotonic, temperature]
+  cv_folds: 5
+
+# Decision policy. Thresholds are chosen on calibration data to minimise
+# expected cost subject to the wrongful-scrap cap in configs/costs.yaml.
+routing:
+  alphas: [0.05, 0.10]                          # levels reported for coverage
+  alpha_grid: [0.05, 0.1, 0.2, 0.3, 0.4, 0.5]   # candidate levels for the REFER rule
+  interval_alpha: 0.10                          # level of the reported dP-ratio interval
+  anomaly_quantile: 0.99
+  t_quarantine_grid: [0.30, 0.95, 0.05]
+  t_rework_grid: [0.20, 0.80, 0.05]
+
+# The model behind the inspection service and the routing policy.
+deploy:
+  model: learned_flow_meta
+  cpu_runtime: onnx        # onnx or torch: how the U-Nets run when no accelerator is used
+
+# Template rationale: thresholds for mentioning a finding.
+rationale:
+  presence_min: 0.5
+  area_min: 0.01
+  load_residual_low: -0.25
+  load_residual_high: 0.25
+
+# Explainability and its tests against the synthetic ground truth.
+explain:
+  gradcam_layer: layer4
+  n_units: 40
+  n_deletion: 16
+  ig_units: 80
+  shap_background: 50
+  shap_units: 100
+  deletion_steps: [0.0, 0.02, 0.05, 0.1, 0.2, 0.35, 0.5, 0.75, 1.0]
+  pointing_tolerance_px: 6
+  driver_groups:
+    crack: {features: [crack], latent: [crack_max_severity, internal_crack_severity]}
+    missing_plug: {features: [missing_plug], latent: [missing_plugs_inlet, missing_plugs_outlet]}
+    chip: {features: [chip], latent: [chip_severity]}
+    leakage: {features: [outlet_soot, load_residual], latent: [bypass_fraction]}
+    face_plugging: {features: [face_plugging], latent: [face_plug_extent]}
+    contamination: {features: [stain], latent: [glazing]}
+    loading: {features: [weight_gain, load_g_per_l, flow_dp, flow_a, flow_b], latent: [ash_load_gL, soot_load_gL]}
+    thermal: {features: [regen, operating_hours], latent: [max_regen_temp_true_c, uncontrolled_regen]}
+
+# Industrial validation campaign (Phase 5).
+campaign:
+  robustness:
+    n_units: 60
+    include: [lighting, exposure, blur, noise, offset, lens_dirt, occlusion]
+    kinds:
+      lighting: [0.15, 0.3, 0.45, 0.6, 0.75]
+      exposure: [0.8, 0.65, 0.5, 0.38, 0.28]
+      blur: [0.8, 1.2, 1.8, 2.5, 3.5]
+      noise: [0.02, 0.04, 0.07, 0.1, 0.15]
+      offset: [0.03, 0.06, 0.1, 0.15, 0.2]
+      lens_dirt: [2, 4, 6, 9, 12]
+      occlusion: [0.03, 0.06, 0.1, 0.15, 0.22]
+  domain_shift:
+    commissioning_units: 50
+    finetune_epochs: 3
+    finetune_lr: 1.0e-4
+  msa:
+    jitter: {offset_sd: 0.01, rotation_deg: 8.0, exposure_sd: 0.1}
+    grr_units: 10
+    grr_trials: 3
+    stations:
+      ST1: {camera: cam_a, flow_bias: 0.0}
+      ST2: {camera: cam_c, flow_bias: 0.02}
+      ST3: {camera: cam_a, flow_bias: -0.015}
+  doe:
+    replicates: 2
+    images_per_class: 30
+    factors:
+      lighting: [diffuse, low_angle]
+      exposure_ev: [-0.4, 0.4]
+      resolution: [192, 256]
+    false_reject_weight: 1.0
+  latency:
+    units: 30
+
+# Service monitoring (drift and control charts).
+monitoring:
+  embedding_components: 8
+  psi_bins: 10
+  psi_warn: 0.10
+  psi_alert: 0.25
+  batch_size: 20
+service:
+  audit_db: runs/audit.sqlite
+  mes_db: runs/mes.sqlite
+
+# Image-quality gate: acceptable ranges come from training images only.
+quality:
+  train_images: 400
+  pixel_percentiles: [0.1, 99.9]
+  image_percentiles: [0.5, 99.5]
+  margin: 0.25
+
+# Imaging-station concept for a real line (used for the resolution budget).
+# All figures are assumptions for sizing, to be confirmed with suppliers.
+station:
+  fov_mm: 380.0                       # square field covering a 330 mm substrate plus can and margin
+  cpsi: [100, 200, 300, 400]
+  wall_mm: 0.30                       # typical wall thickness [verify per part]
+  min_crack_mm: 0.10                  # narrowest crack to detect (assumption)
+  min_px_per_wall: 2.0
+  min_px_per_crack_front: 2.0         # front light: crack must span pixels
+  min_px_per_crack_backlight: 0.5     # backlight: transmitted light reveals sub-pixel cracks
+  tile_px: 512
+  tile_overlap_px: 64
+  sensors:
+    - {name: 5 MP, px_short: 2048}
+    - {name: 12 MP, px_short: 3000}
+    - {name: 20 MP, px_short: 3648}
+    - {name: 45 MP, px_short: 5460}

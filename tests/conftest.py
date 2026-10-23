@@ -37,3 +37,13 @@ def tiny_data(tmp_path_factory: pytest.TempPathFactory) -> Config:
     cfg = _tiny(tmp_path_factory.mktemp("shared"))
     data_stage.run(cfg)
     return cfg
+
+
+@pytest.fixture(scope="session")
+def tiny_run(tiny_data: Config):
+    """A trained and evaluated tiny run, shared by the session."""
+    from preinspect.stages import evaluate, train
+
+    run = train.run(tiny_data)
+    evaluate.run(tiny_data, run.name)
+    return run

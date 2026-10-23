@@ -5,3 +5,9 @@ dataset_name: demo
 generator:
   image_size: 256
   n_units: {main: 1100, novel: 60, shift: 140}
+perception:
+  epochs: 8
+  crop: 160
+fusion:
+  image_size: 160
+  epochs: 8
