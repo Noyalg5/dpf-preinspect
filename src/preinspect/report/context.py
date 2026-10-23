@@ -13,7 +13,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from preinspect.config import Config, data_dir, load_aux
+from preinspect.config import Config, data_dir, load_aux, load_config
 from preinspect.report.station import resolution_budget
 from preinspect.runs import Run
 
@@ -103,6 +103,33 @@ def build_context(cfg: Config, run: Run) -> dict[str, Any]:
         "sample_sizes": sample_sizes(_safe(ddir / "stats.json")),
         "gates": fusion_gates(run),
         "tradeoff": capture_tradeoff(run, load_aux("costs")),
+        "full": other_profile_summary(cfg, "full") if cfg["name"] != "full" else None,
+    }
+
+
+def other_profile_summary(cfg: Config, profile: str) -> dict[str, Any] | None:
+    """Headline facts from the latest local run of another profile, if one exists."""
+    from preinspect.config import runs_dir
+
+    runs = sorted(runs_dir(cfg).glob(f"*_{profile}"))
+    if not runs:
+        return None
+    run = Run(runs[-1])
+    m = run.read_metrics()
+    if "validate" not in m or "evaluate" not in m:
+        return None
+    best = max(m["evaluate"]["headline"], key=lambda r: r["macro_f1"]["mean"])
+    timings = {k: v for k, v in m.get("timings", {}).items()}
+    stage = _safe(data_dir(load_config(profile)) / "logs" / "stage.json")
+    total = sum(timings.values()) + (stage["seconds"] if stage else 0.0)
+    acc = m["validate"]["acceptance"]
+    return {
+        "run_name": run.name,
+        "minutes": total / 60.0,
+        "best": best,
+        "passed": sum(c["status"] == "PASS" for c in acc),
+        "criteria": len(acc),
+        "failed": [c["id"] for c in acc if c["status"] != "PASS"],
     }
 
 

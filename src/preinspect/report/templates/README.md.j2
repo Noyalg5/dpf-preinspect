@@ -72,6 +72,10 @@ Acceptance tests ([plan](docs/acceptance_test_plan.md); illustrative targets in 
 Line simulation ({{ simulate.replications }} replications, assumed rates and costs): oven hours {{ simulate.summary["oven_hours|mean"]["baseline"] | fmt(0) }} → {{ simulate.summary["oven_hours|mean"]["with gate"] | fmt(0) }}, energy {{ simulate.summary["energy_kwh|mean"]["baseline"] | fmt(0) }} → {{ simulate.summary["energy_kwh|mean"]["with gate"] | fmt(0) }} kWh, mean lead time {{ simulate.summary["lead_time_h_mean|mean"]["baseline"] | fmt(1) }} → {{ simulate.summary["lead_time_h_mean|mean"]["with gate"] | fmt(1) }} h, over {{ line_sim.horizon_days }} simulated days.
 {% endif %}
 
+{% if full %}
+The **full profile** (`make full`, run `{{ full.run_name }}`) completed end to end in {{ full.minutes | fmt(0) }} minutes. Its best macro-F1 is {{ full.best.macro_f1.mean | fmt }} ({{ full.best.label }}), and it passes {{ full.passed }} of {{ full.criteria }} acceptance criteria{% if full.failed %} (not met: {{ full.failed | join(", ") }}){% endif %}. Its own reports are produced by `make full` and are not committed.
+
+{% endif %}
 ## Quickstart
 
 ```bash
