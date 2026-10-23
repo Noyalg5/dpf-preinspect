@@ -42,7 +42,7 @@ from preinspect.utils.seeding import make_rng
 log = get_logger(__name__)
 VIEWS = ("inlet", "outlet")
 # Folders and files that are not part of the hashed dataset.
-UNHASHED_DIRS = {"validation", "figures", "logs"}
+UNHASHED_DIRS = {"validation", "figures", "logs", "cache"}
 UNHASHED_FILES = {"manifest.json", "stats.json"}
 
 

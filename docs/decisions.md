@@ -62,3 +62,21 @@ states the context, the decision and its consequences.
 - **Context.** Thermal melt fails the integrity test, so every novel-defect unit is SCRAP.
 - **Decision.** The novel set evaluates the anomaly guard (image and pixel AUROC) and routing to REFER, not outcome classification.
 - **Consequences.** A model that calls melted units SCRAP without the guard firing is still flagged in the report: the guard should route unseen defects to an inspector.
+
+## ADR-011 Classical lattice estimation uses part metadata
+
+- **Context.** The spectrum of a face has two candidate fundamental peaks: the checkerboard diagonal and the wall grid. Under low-angle light the wall grid can dominate, and a template correlation alone can prefer the wrong reading.
+- **Decision.** The expected pitch from the part's datasheet (cell density and diameter in the metadata) chooses between the two readings. Frequency resolution comes from zero-padding and parabolic peak interpolation, because a one-degree orientation error already shifts edge cells by a third of a cell.
+- **Consequences.** The classical pipeline needs correct part metadata. In the stylised simulator the datasheet relation is scaled by a documented constant (`classical.lattice.cells_per_sqrt_cpsi`); a real station would use `25.4 / sqrt(cpsi)` mm and a calibrated mm-per-pixel.
+
+## ADR-012 Lighting mode is a station input
+
+- **Context.** Several measurements invert under backlight: cracks and through-channels become bright, and deposits cannot be judged.
+- **Decision.** The station records its lighting mode per image, and the classical pipeline selects its rules (radius landmark, ridge polarity, missing-plug test) accordingly. The lighting mode is also given to the boosting models as a categorical feature.
+- **Consequences.** A mislabelled lighting mode degrades measurements; the input validator checks it is a known value.
+
+## ADR-013 Feature caching
+
+- **Context.** Classical feature extraction dominates training time on a laptop.
+- **Decision.** Classical features are cached under `data/<profile>/cache/`, keyed by the manifest hash, the `classical` config section and the SHA-256 of the extractor source files. The cache folder is excluded from the data manifest.
+- **Consequences.** Any change to data, config or extractor code forces re-extraction; a stale cache cannot be used silently.

@@ -293,3 +293,38 @@ validation:
   max_flow_dropouts: 2
   disposition_tolerance: 0.0
   image_min_std: 2.0
+
+# Classical image-processing baseline. Pixel sizes are for a 256 px image
+# and scale linearly with image size.
+classical:
+  ref_size: 256
+  localise: {hp_sigma: 1.2, texture_sigma: 4.0, radius_scale: 1.0, min_area_frac: 0.05,
+             refine_range: [0.9, 1.03], gap_centre_r: 1.01,
+             refine_landmark: {diffuse: dark, backlight: dark, low_angle: bright}}
+  lattice: {cells_range: [24, 64], phase_steps: 8, crop_r: 0.95, zero_pad: 4,
+            cells_per_sqrt_cpsi: 2.4, reference_diameter_mm: 267.0}
+  cells: {face_r: 0.9, window_cells: 7, missing_level: 0.35, blocked_level: 0.5,
+          low_contrast: 0.3, min_contrast: 0.04, backlight_k: 5.0, region_drop: 0.3,
+          blocked_min_neighbours: 2}
+  notch: {median_size: 9, peak_threshold: 1.0, dc_radius: 3}
+  crack: {sato_sigmas: [1.0, 1.6], k_mad: 8.0, min_length_cells: 3.0, face_r: 0.96, eval_r: 0.92}
+  chip: {n_angles: 180, r_start: 0.9, r_stop: 1.12, ring_stop: 0.985, can_range: [1.03, 1.09],
+         dark_dev: -0.3, bright_dev: 1.0, occluded_share: 0.5, depth_threshold: 0.02,
+         radial_sigma_px: 1.0}
+  colour: {smooth_cells: 1.5, chroma_threshold: 7.0, dark_level: 0.75, bright_level: 1.5}
+
+# Gradient-boosting models on tabular features. Each entry is a modality
+# combination; the same settings serve every combination for a fair ablation.
+tabular:
+  classifier: {max_iter: 300, learning_rate: 0.05, max_leaf_nodes: 15, min_samples_leaf: 10,
+               l2_regularization: 1.0, class_weight: balanced}
+  regressor: {max_iter: 300, learning_rate: 0.05, max_leaf_nodes: 15, min_samples_leaf: 10,
+              l2_regularization: 1.0, loss: absolute_error}
+  models:
+    metadata_only: [metadata]
+    flow_only: [flow]
+    classical_vision: [classical]
+    classical_flow_meta: [classical, flow, metadata]
+
+evaluation:
+  ece_bins: 15
