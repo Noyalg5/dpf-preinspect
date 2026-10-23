@@ -74,6 +74,8 @@ Acceptance tests ([plan](docs/acceptance_test_plan.md); illustrative targets in 
 
 Line simulation (5 replications, assumed rates and costs): oven hours 10681 → 9209, energy 81883 → 71756 kWh, mean lead time 11.9 → 9.8 h, over 20 simulated days.
 
+The **full profile** (`make full`, run `20261023-064502_full`) completed end to end in 106 minutes. Its best macro-F1 is 0.692 (Learned concepts + flow + metadata), and it passes 5 of 8 acceptance criteria (not met: AC-01, AC-02, AC-04). Its own reports are produced by `make full` and are not committed.
+
 ## Quickstart
 
 ```bash

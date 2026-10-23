@@ -23,10 +23,10 @@
 
 ## Evidence
 
-### Decisions on the test split (AC-01, AC-02, AC-05)
+### Decisions on the test split (AC-01, AC-02, AC-05, AC-08)
 
 - Test units: 254. Wrongful-scrap rate 1.5 %, SCRAP capture (QUARANTINE or REFER) 59.3 %, REFER share 18.9 %.
-- Thresholds: quarantine at P(SCRAP) >= 0.70, extended clean at P(REWORK) >= 0.20, conformal level alpha = 0.5, anomaly threshold 3.570.
+- Thresholds: quarantine at P(SCRAP) >= 0.70, extended clean at P(REWORK) >= 0.20, REFER when SCRAP is in the conformal set at alpha = 0.5, anomaly threshold 3.570.
 - Conformal sets at alpha = 0.05: coverage 100.0 % against recorded labels and 100.0 % against the latent truth; mean set size 3.00. ΔP-ratio intervals ± 0.349 cover 98.4 % of recorded values.
 - Conformal sets at alpha = 0.1: coverage 91.3 % against recorded labels and 91.7 % against the latent truth; mean set size 1.96. ΔP-ratio intervals ± 0.168 cover 93.3 % of recorded values.
 
@@ -104,6 +104,8 @@ Gauge R&R on the predicted ΔP ratio (10 units x 3 stations x 3 trials): %GRR 6.
 ![Main effects](figures/doe_effects.png)
 
 Recommended set-up: lighting `diffuse`, exposure -0.4 EV, resolution 256 px (crack recall 80.0 %, false-reject rate 0.0 %). The resolution effect includes a train/test mismatch because the perception model was trained only at the higher resolution.
+
+p-values are n/a where a response did not vary across runs (for example no false rejects at any setting).
 
 | Term | Effect on crack recall | p | Effect on false-reject rate | p |
 |---|---|---|---|---|
