@@ -33,7 +33,7 @@ flowchart TB
 ![Station concept](../reports/figures/station.png)
 
 - **Views.** Inlet face, then outlet face after turning the unit over in a cradle that seats it repeatably (centring stops, turntable for rotation).
-- **Lighting.** A switchable diffuse dome or low-angle ring light for deposits, stains and chips, and a backlight panel for cracks and channels missing a plug, which show as light leaks.{% if validate %} The imaging DoE recommends {{ validate.doe.recommended.lighting }} lighting at {{ validate.doe.recommended.exposure_ev }} EV and {{ validate.doe.recommended.resolution }} px among the settings tested.{% endif %}
+- **Lighting.** A switchable diffuse dome or low-angle ring light for deposits, stains and chips, and a backlight panel for cracks and channels missing a plug, which show as light leaks.{% if validate %} The imaging DoE recommends {{ validate.doe.recommended.lighting }} lighting at {{ validate.doe.recommended.exposure_ev }} EV and {{ validate.doe.recommended.resolution }} px among the settings tested.{% endif +%}
 - **Camera.** Area-scan, fixed working distance, low-distortion or telecentric lens; enclosure to exclude ambient light.
 - **Scale and flow bench.** Weight gain against the part's nominal weight; incoming flow curve at {{ cfg.generator.flow.q_m3s | length }} flow points.
 

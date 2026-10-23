@@ -11,7 +11,7 @@ Criteria and targets are rendered from `configs/acceptance.yaml` (status: **{{ a
   "AC-06": "Apply each corruption at five severities to a stratified test sample; compute the rate of unsafe automatic routes (wrongful quarantine or unchecked scrap); report the largest increase over clean inputs.",
   "AC-07": "Log decisions to a fresh audit trail and verify it; alter records directly in the database and verify again. Pass only if the clean chain verifies and the tampered one is detected.",
   "AC-08": "Route every test unit; divide the units routed to REFER by all units.",
-} %}
+} +%}
 | ID | Criterion | Requirement | Target | Method | Evidence |
 |---|---|---|---|---|---|
 {% for cid, c in acceptance.criteria.items() %}

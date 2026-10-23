@@ -38,13 +38,13 @@ def comparisons(headline: list[dict], ablation: list[dict]) -> dict[str, Any]:
     concept_all = _f1(headline, "learned_flow_meta")
     e2e_all, e2e_img = _f1(headline, "e2e_all"), _f1(headline, "e2e_image")
     classical_all = _f1(headline, "classical_flow_meta")
-    refer = {r["model"]: r["refer_share_op"]["mean"] for r in headline if "refer_share_op" in r}
-    deployed_refer = refer.get("learned_flow_meta")
+    saving = {r["model"]: r["saving_per_unit"]["mean"] for r in headline if "saving_per_unit" in r}
+    deployed_saving = saving.get("learned_flow_meta")
     flow_auc = next((r["auc_scrap"]["mean"] for r in headline if r["model"] == "flow_only"), None)
     return {
         "flow_scrap_auc": flow_auc,
-        "deployed_fewest_referrals": deployed_refer is not None
-        and all(deployed_refer <= v for v in refer.values()),
+        "deployed_best_saving": deployed_saving is not None
+        and all(deployed_saving >= v for v in saving.values()),
         "best": best,
         "best_is_concept_route": best["model"] in ("learned_flow_meta", "classical_flow_meta"),
         "best_single_group": {"V": "vision", "F": "flow", "M": "metadata"}.get(

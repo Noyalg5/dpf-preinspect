@@ -50,7 +50,7 @@ Profile `{{ profile }}`, run `{{ run_name }}` (code `{{ commit }}`, data manifes
 {% endfor %}
 
 {% if cmp %}
-- Highest macro-F1: **{{ cmp.best.label }}** ({{ cmp.best.macro_f1.mean | fmt }}).{% if cmp.fusion_gain is not none %} Combining vision, flow and metadata in the concept route {{ "adds" if cmp.fusion_gain > 0 else "does not add" }} {{ (cmp.fusion_gain | abs) | fmt }} macro-F1 over the best single modality ({{ cmp.best_single_group }}).{% endif %}
+- Highest macro-F1: **{{ cmp.best.label }}** ({{ cmp.best.macro_f1.mean | fmt }}).{% if cmp.fusion_gain is not none %} Combining vision, flow and metadata in the concept route {{ "adds" if cmp.fusion_gain > 0 else "does not add" }} {{ (cmp.fusion_gain | abs) | fmt }} macro-F1 over the best single modality ({{ cmp.best_single_group }}).{% endif +%}
 
 - At the operating point, the deployed model ({{ deployed }}) routes {{ decision.rates.scrap_capture_rate | pct }} of true scrap to QUARANTINE or REFER, quarantines {{ decision.rates.wrongful_scrap_rate | pct }} of serviceable units, and refers {{ decision.rates.share_REFER | pct }} of units to an inspector. Expected saving under the assumed costs: {{ decision.cost_per_unit.saving | fmt(2) }} GBP per unit against today's process.
 {% if tradeoff and tradeoff.capture90 %}

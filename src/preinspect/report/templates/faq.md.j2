@@ -11,13 +11,13 @@ No. Every unit, image, curve and label comes from the simulator in `src/preinspe
 No. Parameters were set for plausible class balance and defect prevalence before training (ADR-006), and later changes would bump the version and re-run everything. Some results are unfavourable and are reported as such (for example the acceptance criteria that fail).
 
 **Which approach wins?**
-{{ cmp.best.label }} has the highest test macro-F1 ({{ cmp.best.macro_f1.mean | fmt }}). The deployed concept route differs from the end-to-end network by {{ cmp.concept_minus_e2e | fmt }} macro-F1. At its cost-optimal operating point, the deployed model refers {{ d.rates.share_REFER | pct }} of units{% if cmp.deployed_fewest_referrals %}, fewer than any other approach{% endif %}.
+{{ cmp.best.label }} has the highest test macro-F1 ({{ cmp.best.macro_f1.mean | fmt }}). The deployed concept route differs from the end-to-end network by {{ cmp.concept_minus_e2e | fmt }} macro-F1. At its cost-optimal operating point, the deployed model refers {{ d.rates.share_REFER | pct }} of units and saves {{ d.cost_per_unit.saving | fmt(2) }} GBP per unit{% if cmp.deployed_best_saving %}, more than any other approach{% endif %}.
 
 **Why deploy the concept route rather than the end-to-end network?**
 Its inputs are physical measurements (crack length, missing plugs, outlet soot, flow restriction against weight gain), so every decision has a rationale an inspector can check. Onboarding a new line only requires adapting the perception model. Its explanations can be tested against ground truth. The end-to-end network is kept as a challenger.
 
 **Does fusing modalities help?**
-{% if cmp.fusion_gain is not none %}In the concept route, all three modalities together score {{ (cmp.fusion_gain | abs) | fmt }} macro-F1 {{ "above" if cmp.fusion_gain > 0 else "below" }} the best single group ({{ cmp.best_single_group }}). The data was built so that no single modality is sufficient: vision sees damage, flow and weight see loading, and internal cracks are only visible indirectly.{% endif %}
+{% if cmp.fusion_gain is not none %}In the concept route, all three modalities together score {{ (cmp.fusion_gain | abs) | fmt }} macro-F1 {{ "above" if cmp.fusion_gain > 0 else "below" }} the best single group ({{ cmp.best_single_group }}). The data was built so that no single modality is sufficient: vision sees damage, flow and weight see loading, and internal cracks are only visible indirectly.{% endif +%}
 
 **Does a pre-clean flow test earn its cycle time?**
 Compare the ablation rows with and without F in `docs/technical_report.md` section 6.2. Flow on its own has a SCRAP AUC of {{ cmp.flow_scrap_auc | fmt }}, because leaks lower the pressure drop; its value is in combination with weight gain and images.
@@ -35,13 +35,13 @@ The anomaly guard flags it when it is not explained by a known defect class. Mel
 {% if v %}On a new product line with an unseen cell density and camera, macro-F1 moves from {{ v.domain_shift.reference.macro_f1 | fmt }} (main test) to {{ v.domain_shift.before.macro_f1 | fmt }}, and {{ v.domain_shift.after.macro_f1 | fmt }} after commissioning on {{ v.domain_shift.commissioning_units }} units. Images outside the training envelope are referred to an inspector by the image-quality gate.{% endif %} Drift is monitored with PSI on metadata and on an image embedding.
 
 **Is it repeatable?**
-{% if v %}Re-imaging the same unit gives the same route {{ v.msa.attribute.route_repeatability | pct }} of the time; the predicted ΔP ratio has %GRR {{ v.msa.grr.pct_grr | fmt(1) }} % and ndc {{ v.msa.grr.ndc | fmt(0) }}. Route repeatability is limited by units near decision thresholds.{% endif %}
+{% if v %}Re-imaging the same unit gives the same route {{ v.msa.attribute.route_repeatability | pct }} of the time; the predicted ΔP ratio has %GRR {{ v.msa.grr.pct_grr | fmt(1) }} % and ndc {{ v.msa.grr.ndc | fmt(0) }}. Route repeatability is limited by units near decision thresholds.{% endif +%}
 
 **Can an operator overrule it?**
 Yes, always. An override needs a reason; both the recommendation and the override are written to a hash-chained audit trail, and overrides are counted on the dashboard.
 
 **How fast is it?**
-{% if v %}p95 per unit on CPU {{ v.latency.latency_p95_cpu_s | fmt(2) }} s ({{ v.latency.deployed_cpu_path }}), well inside a station cycle of minutes.{% endif %}
+{% if v %}p95 per unit on CPU {{ v.latency.latency_p95_cpu_s | fmt(2) }} s ({{ v.latency.deployed_cpu_path }}), well inside a station cycle of minutes.{% endif +%}
 
 **What would it save?**
 Under the assumed costs in `configs/costs.yaml`, {{ d.cost_per_unit.saving | fmt(2) }} GBP per unit on the test split. {% if simulate %}The line simulation shows oven hours falling from {{ simulate.summary["oven_hours|mean"]["baseline"] | fmt(0) }} to {{ simulate.summary["oven_hours|mean"]["with gate"] | fmt(0) }} over {{ line_sim.horizon_days }} days; the saving is most sensitive to `{{ simulate.tornado[0].parameter }}`.{% endif %} Real figures need real costs and a pilot.

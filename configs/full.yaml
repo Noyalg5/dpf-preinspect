@@ -1,4 +1,6 @@
-# Full profile: larger data, higher resolution, three training seeds.
+# Full profile: about 2.3 times the demo's units at 384 px, longer training and
+# three seeds for the end-to-end network; sized for roughly two hours on an
+# 8 GB Apple M2 (measured stage times are recorded in every run).
 extends: base
 name: full
 dataset_name: full
@@ -6,10 +8,10 @@ generator:
   image_size: 384
   n_units: {main: 2600, novel: 120, shift: 260}
 perception:
-  epochs: 14
-fusion:
-  image_size: 224
   epochs: 12
+fusion:
+  image_size: 192
+  epochs: 8
   seeds: 3
 campaign:
   robustness:

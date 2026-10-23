@@ -68,6 +68,8 @@ Gauge R&R on the predicted ΔP ratio ({{ msa.grr.parts }} units x {{ msa.grr.ope
 
 Recommended set-up: lighting `{{ doe.recommended.lighting }}`, exposure {{ doe.recommended.exposure_ev }} EV, resolution {{ doe.recommended.resolution }} px (crack recall {{ doe.recommended_scores.crack_recall | pct }}, false-reject rate {{ doe.recommended_scores.false_reject_rate | pct }}). The resolution effect includes a train/test mismatch because the perception model was trained only at the higher resolution.
 
+p-values are n/a where a response did not vary across runs (for example no false rejects at any setting).
+
 | Term | Effect on crack recall | p | Effect on false-reject rate | p |
 |---|---|---|---|---|
 {% for term, eff in doe.crack_recall.effects.items() %}
