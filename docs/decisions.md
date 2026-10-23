@@ -114,8 +114,8 @@ states the context, the decision and its consequences.
 ## ADR-019 Calibration data and method selection
 
 - **Context.** One calibration split must serve probability calibration, threshold selection and conformal prediction.
-- **Decision.** The calibration split is halved by alternating unit IDs. The first half fits calibration maps (method for boosting chosen by cross-validated log-loss among sigmoid, isotonic and temperature), the anomaly threshold and the routing policy; the second half fits conformal quantiles. Test ECE of every candidate method is reported but not used to choose.
-- **Consequences.** Conformal guarantees hold on the second half; thresholds may be slightly optimistic because the first half is reused.
+- **Decision.** The calibration split is halved by alternating unit IDs. The first half fits calibration maps (method for boosting chosen by cross-validated log-loss among sigmoid, isotonic and temperature); the second half fits conformal quantiles. The anomaly threshold and the routing policy are chosen on the whole calibration split: with half of it, one unit moved the wrongful-scrap estimate by about two percentage points, and a policy that met the cap on calibration data missed it on test. Test ECE of every candidate method is reported but not used to choose.
+- **Consequences.** Conformal guarantees hold on the second half; the routing search reuses calibrated probabilities and set memberships on calibration units, so its estimates may be slightly optimistic.
 
 ## ADR-020 Deploy the concept route
 
@@ -146,3 +146,15 @@ states the context, the decision and its consequences.
 - **Context.** The process-impact estimate needs queueing effects, not just a cost per unit.
 - **Decision.** SimPy model with oven slots running continuously, a test bench, an inspector and a pre-inspection station; routes drawn from the deployed policy's test-split route-given-outcome rates; common random numbers between baseline and gated scenarios.
 - **Consequences.** No shifts, breakdowns or set-ups; all rates and costs are labelled assumptions in `configs/line_sim.yaml` and `configs/costs.yaml`.
+
+## ADR-025 Modality dropout in the end-to-end network
+
+- **Context.** In a demo run the gate of the end-to-end network put most of its weight on the flow branch, the weakest modality for recognising scrap, and SCRAP recall collapsed. This is modality competition: the branch that fits fastest dominates the gate and the others stop learning.
+- **Decision.** During training each modality is dropped per sample with probability `fusion.modality_dropout` (at least one is always kept) by masking its gate logit.
+- **Consequences.** Every branch must carry signal on its own; inference is unchanged. Mean gate weights on the test split are reported so the effect can be checked in every run.
+
+## ADR-026 Inspector review is not free of error
+
+- **Context.** With referral priced only as inspector time and a chance of catching scrap, sending every unit to REFER looked cheaper than today's process, and the cost search referred most units.
+- **Decision.** The cost model and the line simulation include `refer_false_scrap`: the chance that an inspector reviewing a referred unit wrongly scraps a serviceable one (an assumption in `configs/costs.yaml`).
+- **Consequences.** Referral carries a cost for serviceable units, so the policy refers units where scrap is plausible rather than everything.

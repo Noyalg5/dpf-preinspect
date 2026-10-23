@@ -43,6 +43,10 @@ items:
     value: 0.6
     unit: probability
     note: "assumption: chance an inspector reviewing a REFER unit recognises true scrap before cleaning"
+  refer_false_scrap:
+    value: 0.05
+    unit: probability
+    note: "assumption: chance an inspector reviewing a REFER unit wrongly scraps a serviceable one"
 energy:
   standard_clean_kwh:
     value: 45.0

@@ -64,9 +64,16 @@ class MetaPreprocessor:
 class FusionDataset(Dataset):
     """One item per unit with targets from the recorded downstream tests."""
 
-    def __init__(self, ddir: Path, units: pd.DataFrame, prep: MetaPreprocessor,
-                 gcfg: dict[str, Any], image_size: int, augment: dict[str, Any] | None = None,
-                 seed: int = 0) -> None:
+    def __init__(
+        self,
+        ddir: Path,
+        units: pd.DataFrame,
+        prep: MetaPreprocessor,
+        gcfg: dict[str, Any],
+        image_size: int,
+        augment: dict[str, Any] | None = None,
+        seed: int = 0,
+    ) -> None:
         self.ddir, self.units, self.prep = Path(ddir), units.reset_index(drop=True), prep
         self.gcfg, self.size, self.augment, self.seed = gcfg, image_size, augment, seed
         self.signals = load_signals(self.ddir)
@@ -86,8 +93,11 @@ class FusionDataset(Dataset):
 
     def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
         row = self.units.iloc[idx]
-        rng = (np.random.default_rng((self.seed, self.epoch, idx))
-               if self.augment is not None else None)
+        rng = (
+            np.random.default_rng((self.seed, self.epoch, idx))
+            if self.augment is not None
+            else None
+        )
         curve = normalised_curve(self.gcfg, row.to_dict(), self.signals[int(row["signal_index"])])
         dp = row.get("dp_ratio_post_clean", np.nan)
         return {
@@ -95,8 +105,9 @@ class FusionDataset(Dataset):
             "outlet": self._image(row["unit_id"], "outlet", rng),
             "flow": torch.from_numpy(curve),
             "meta": torch.from_numpy(self.prep.transform(row)),
-            "outcome": torch.tensor(OUTCOMES.index(row["disposition"])
-                                    if row.get("disposition") in OUTCOMES else -1),
+            "outcome": torch.tensor(
+                OUTCOMES.index(row["disposition"]) if row.get("disposition") in OUTCOMES else -1
+            ),
             "dp": torch.tensor(float(dp) if pd.notna(dp) else float("nan")),
             "integrity": torch.tensor(float(bool(row.get("integrity_pass", True)))),
         }

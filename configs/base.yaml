@@ -394,6 +394,7 @@ fusion:
   weight_decay: 1.0e-4
   dp_weight: 2.0
   integrity_weight: 0.5
+  modality_dropout: 0.25
   seeds: 1
   variants:
     e2e_image: [image]
@@ -498,6 +499,7 @@ service:
 # Image-quality gate: acceptable ranges come from training images only.
 quality:
   train_images: 400
+  area_median_px: 5
   pixel_percentiles: [0.1, 99.9]
   image_percentiles: [0.5, 99.5]
   margin: 0.25

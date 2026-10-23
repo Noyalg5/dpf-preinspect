@@ -33,7 +33,6 @@ def dataset_stats(cfg: Config) -> dict[str, Any]:
     ddir = data_dir(cfg)
     manifest = json.loads((ddir / "manifest.json").read_text())
     status = json.loads((ddir / "validation" / "status.json").read_text())
-    raw = pd.read_parquet(ddir / "units.parquet")
     clean = pd.read_parquet(ddir / "validation" / "units_clean.parquet")
     latent = load_latent(ddir).set_index("unit_id")
     scenes = load_scenes(ddir)
@@ -53,8 +52,10 @@ def dataset_stats(cfg: Config) -> dict[str, Any]:
         for view in VIEWS:
             nuisance["reflection"] += rec["acquisition"][view]["reflection"] is not None
             nuisance["clamp"] += rec["acquisition"][view]["clamp"] is not None
-    sizes = {k: sum((ddir / f).stat().st_size for f in manifest["files"] if f.startswith(k))
-             for k in ("images", "masks")}
+    sizes = {
+        k: sum((ddir / f).stat().st_size for f in manifest["files"] if f.startswith(k))
+        for k in ("images", "masks")
+    }
     stats = {
         "profile": cfg["name"],
         "generator_version": manifest["generator_version"],
@@ -124,6 +125,7 @@ def gallery(cfg: Config, path: Path) -> Path:
             img = cv2.drawContours(img.copy(), contours, -1, colour, 1)
         ax.imshow(img)
         ax.set_title(f"{title}\n{uid} {view}", fontsize=8)
-    fig.suptitle("Synthetic face images with ground-truth mask outlines (synthetic data)",
-                 fontsize=10)
+    fig.suptitle(
+        "Synthetic face images with ground-truth mask outlines (synthetic data)", fontsize=10
+    )
     return save_figure(fig, path)

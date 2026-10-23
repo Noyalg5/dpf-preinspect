@@ -76,8 +76,12 @@ def check_files(ddir: Path, manifest: dict[str, Any]) -> list[dict[str, str]]:
             issues.append({"file": rel, "issue": "hash mismatch"})
     for path in ddir.rglob("*"):
         rel_parts = set(path.relative_to(ddir).parts)
-        if (path.is_file() and path.name not in UNHASHED_FILES and not UNHASHED_DIRS & rel_parts
-                and str(path.relative_to(ddir)) not in listed):
+        if (
+            path.is_file()
+            and path.name not in UNHASHED_FILES
+            and not UNHASHED_DIRS & rel_parts
+            and str(path.relative_to(ddir)) not in listed
+        ):
             issues.append({"file": str(path.relative_to(ddir)), "issue": "not in manifest"})
     return issues
 
@@ -101,13 +105,16 @@ def record_checks(
     def flag(rows: pd.Index, check: str, detail: Any) -> None:
         for r in rows:
             d = detail(r) if callable(detail) else detail
-            flags.append({"row": int(r), "unit_id": units.at[r, "unit_id"], "check": check,
-                          "detail": d})
+            flags.append(
+                {"row": int(r), "unit_id": units.at[r, "unit_id"], "check": check, "detail": d}
+            )
 
     for col in v["required"]:
         flag(units.index[units[col].isna()], "MISSING_REQUIRED", f"{col} is blank")
-    known = {"material": set(cfg["generator"]["substrate"]["materials"]),
-             "application": set(cfg["generator"]["applications"])}
+    known = {
+        "material": set(cfg["generator"]["substrate"]["materials"]),
+        "application": set(cfg["generator"]["applications"]),
+    }
     for col, allowed in known.items():
         bad = units[col].notna() & ~units[col].isin(allowed)
         flag(units.index[bad], "UNKNOWN_CATEGORY", lambda r, c=col: f"{c}={units.at[r, c]}")
@@ -118,8 +125,11 @@ def record_checks(
     as_c = (temp - 32.0) * 5.0 / 9.0
     lo_t, hi_t = v["ranges"]["max_regen_temp_c"]
     fahr = (temp > v["fahrenheit_suspect_above"]) & as_c.between(lo_t, hi_t)
-    flag(units.index[fahr], "PROBABLE_FAHRENHEIT",
-         lambda r: f"{temp[r]} would be {as_c[r]:.0f} °C if logged in Fahrenheit")
+    flag(
+        units.index[fahr],
+        "PROBABLE_FAHRENHEIT",
+        lambda r: f"{temp[r]} would be {as_c[r]:.0f} °C if logged in Fahrenheit",
+    )
     for col, (lo, hi) in v["ranges"].items():
         vals = pd.to_numeric(units[col], errors="coerce")
         bad = vals.notna() & ((vals < lo) | (vals > hi))
@@ -129,18 +139,28 @@ def record_checks(
 
     curves = signals[units["signal_index"].to_numpy(), 1, :]
     n_nan = np.isnan(curves).sum(axis=1)
-    flag(units.index[n_nan > v["max_flow_dropouts"]], "FLOW_DROPOUTS",
-         lambda r: f"{n_nan[units.index.get_loc(r)]} of {curves.shape[1]} points missing")
+    flag(
+        units.index[n_nan > v["max_flow_dropouts"]],
+        "FLOW_DROPOUTS",
+        lambda r: f"{n_nan[units.index.get_loc(r)]} of {curves.shape[1]} points missing",
+    )
 
     spec = cfg["generator"]["outcome"]["spec_ratio"]
     implied = [
         disposition_rule(bool(i), float(c), float(e), spec)
-        for i, c, e in zip(units["integrity_pass"], units["dp_ratio_post_clean"],
-                           units["dp_ratio_post_extended"], strict=True)
+        for i, c, e in zip(
+            units["integrity_pass"],
+            units["dp_ratio_post_clean"],
+            units["dp_ratio_post_extended"],
+            strict=True,
+        )
     ]
     mismatch = units["disposition"].to_numpy() != np.asarray(implied)
-    flag(units.index[mismatch], "DISPOSITION_MISMATCH",
-         lambda r: f"recorded {units.at[r, 'disposition']}, tests imply {implied[r]}")
+    flag(
+        units.index[mismatch],
+        "DISPOSITION_MISMATCH",
+        lambda r: f"recorded {units.at[r, 'disposition']}, tests imply {implied[r]}",
+    )
 
     warnings = {"flow_points_imputed": int(((n_nan > 0) & (n_nan <= v["max_flow_dropouts"])).sum())}
     return pd.DataFrame(flags, columns=["row", "unit_id", "check", "detail"]), warnings
@@ -154,8 +174,14 @@ def image_checks(ddir: Path, units: pd.DataFrame, min_std: float) -> pd.DataFram
             path = ddir / "images" / f"{uid}_{view}.jpg"
             img = cv2.imread(str(path)) if path.exists() else None
             if img is None or float(img.std()) < min_std:
-                flags.append({"row": int(r), "unit_id": uid, "check": "IMAGE_UNREADABLE",
-                              "detail": f"{view} image missing, unreadable or blank"})
+                flags.append(
+                    {
+                        "row": int(r),
+                        "unit_id": uid,
+                        "check": "IMAGE_UNREADABLE",
+                        "detail": f"{view} image missing, unreadable or blank",
+                    }
+                )
     return pd.DataFrame(flags, columns=["row", "unit_id", "check", "detail"])
 
 
@@ -182,24 +208,35 @@ def validate_dataset(cfg: Config, write: bool = True) -> ValidationResult:
     file_issues += [{"file": "units.parquet", "issue": f"column {c} missing"} for c in missing_cols]
     signals = np.load(ddir / "signals.npy")
     flags, warnings = record_checks(units, signals, cfg)
-    flags = pd.concat([flags, image_checks(ddir, units, cfg["validation"]["image_min_std"])],
-                      ignore_index=True)
+    flags = pd.concat(
+        [flags, image_checks(ddir, units, cfg["validation"]["image_min_std"])], ignore_index=True
+    )
     flags["level"] = np.where(flags["check"].isin(FIELD_CHECKS), "field", "record")
     bad_rows = set(flags.loc[flags["level"] == "record", "row"])
     accepted = units.loc[~units.index.isin(bad_rows), "unit_id"].tolist()
     result = ValidationResult(
-        integrity_ok=not file_issues, file_issues=file_issues, quarantine=flags,
-        accepted=accepted, warnings=warnings, n_records=len(units),
+        integrity_ok=not file_issues,
+        file_issues=file_issues,
+        quarantine=flags,
+        accepted=accepted,
+        warnings=warnings,
+        n_records=len(units),
     )
     if write:
         _write_outputs(cfg, ddir, manifest, units, result)
-    log.info("validation: integrity %s, %d records, %d quarantined, %d accepted",
-             "OK" if result.integrity_ok else "FAILED", len(units), len(bad_rows), len(accepted))
+    log.info(
+        "validation: integrity %s, %d records, %d quarantined, %d accepted",
+        "OK" if result.integrity_ok else "FAILED",
+        len(units),
+        len(bad_rows),
+        len(accepted),
+    )
     return result
 
 
-def _write_outputs(cfg: Config, ddir: Path, manifest: dict, units: pd.DataFrame,
-                   result: ValidationResult) -> None:
+def _write_outputs(
+    cfg: Config, ddir: Path, manifest: dict, units: pd.DataFrame, result: ValidationResult
+) -> None:
     out = ddir / "validation"
     out.mkdir(exist_ok=True)
     result.quarantine.to_csv(out / "quarantine.csv", index=False)
@@ -226,11 +263,18 @@ def _write_outputs(cfg: Config, ddir: Path, manifest: dict, units: pd.DataFrame,
         "accepted_by_split": accepted_units["split"].value_counts().to_dict(),
     }
     (out / "status.json").write_text(json.dumps(status, indent=1))
-    render_to_file("data_quality_report.md.j2", {
-        "status": status, "checks": CHECKS, "manifest": manifest,
-        "file_issues": result.file_issues, "field_checks": FIELD_CHECKS,
-        "examples": result.quarantine.drop(columns="row").head(25).to_dict("records"),
-    }, out / "data_quality_report.md")
+    render_to_file(
+        "data_quality_report.md.j2",
+        {
+            "status": status,
+            "checks": CHECKS,
+            "manifest": manifest,
+            "file_issues": result.file_issues,
+            "field_checks": FIELD_CHECKS,
+            "examples": result.quarantine.drop(columns="row").head(25).to_dict("records"),
+        },
+        out / "data_quality_report.md",
+    )
 
 
 def require_valid(cfg: Config) -> pd.DataFrame:

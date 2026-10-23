@@ -237,10 +237,9 @@ def sample_payload(cfg: Config, unit_id: str) -> dict[str, Any]:
     row = units.loc[unit_id].copy()
     row["unit_id"] = unit_id
     unit = unit_from_dataset(ddir, row, load_signals(ddir))
+    # The station's original JPEG bytes, not a re-encoding of the decoded image.
     jpg = {
-        v: base64.b64encode(
-            cv2.imencode(".jpg", cv2.cvtColor(unit.images[v], cv2.COLOR_RGB2BGR))[1].tobytes()
-        ).decode()
+        v: base64.b64encode((ddir / "images" / f"{unit_id}_{v}.jpg").read_bytes()).decode()
         for v in VIEWS
     }
     meta = {k: (None if isinstance(v, float) and np.isnan(v) else v) for k, v in unit.meta.items()}

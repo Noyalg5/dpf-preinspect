@@ -49,14 +49,17 @@ def image_stats(
     r, _ = loc.polar(gray.shape)
     face = r < 0.9
     vals = gray[face].astype(np.float32)
+    # Obstructions and glare are areas; a median filter keeps them but removes
+    # isolated pixels from noise or repeated JPEG compression.
+    smooth = cv2.medianBlur(gray, cfg["quality"]["area_median_px"])[face].astype(np.float32)
     size = gray.shape[0]
     expected = 0.5 * diameter_mm / cfg["generator"]["fov_mm"] * size
     lo, hi = bounds if bounds else (0.0, 255.0)
     return {
         "brightness": float(np.median(vals)),
         "sharpness": float(cv2.Laplacian(gray, cv2.CV_32F)[face].var()),
-        "dark_area": float((vals < lo).mean()),
-        "bright_area": float((vals > hi).mean()),
+        "dark_area": float((smooth < lo).mean()),
+        "bright_area": float((smooth > hi).mean()),
         "offset": float(np.hypot(loc.cx - size / 2, loc.cy - size / 2) / size),
         "radius_ratio": float(loc.radius / expected),
     }

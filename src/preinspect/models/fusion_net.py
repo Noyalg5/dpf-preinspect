@@ -79,19 +79,30 @@ class FusionNet(nn.Module):
         return self.image_proj(torch.cat([pooled[:n], pooled[n:]], dim=1))
 
     def forward(
-        self, inlet: torch.Tensor, outlet: torch.Tensor, flow: torch.Tensor, meta: torch.Tensor
+        self,
+        inlet: torch.Tensor,
+        outlet: torch.Tensor,
+        flow: torch.Tensor,
+        meta: torch.Tensor,
+        keep: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
         """Return logits, ΔP ratio, integrity logit and gate weights."""
         image = self.embed_image(inlet, outlet) if "image" in self.modalities else None
-        return self.fuse(image, flow, meta)
+        return self.fuse(image, flow, meta, keep)
 
     def fuse(
-        self, image: torch.Tensor | None, flow: torch.Tensor, meta: torch.Tensor
+        self,
+        image: torch.Tensor | None,
+        flow: torch.Tensor,
+        meta: torch.Tensor,
+        keep: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
         """Heads applied to a precomputed image embedding plus the raw flow and metadata.
 
         Separating this step lets attribution methods on flow and metadata run
-        without re-encoding the images at every integration step.
+        without re-encoding the images at every integration step. ``keep`` is
+        an optional ``(B, n_modalities)`` boolean mask used for modality
+        dropout during training: a dropped modality gets zero gate weight.
         """
         emb = []
         if image is not None:
@@ -101,7 +112,10 @@ class FusionNet(nn.Module):
         if "metadata" in self.modalities:
             emb.append(self.meta(meta))
         stacked = torch.stack(emb, dim=1)
-        gates = F.softmax(self.gate(torch.cat(emb, dim=1)), dim=1)
+        gate_logits = self.gate(torch.cat(emb, dim=1))
+        if keep is not None:
+            gate_logits = gate_logits.masked_fill(~keep, float("-inf"))
+        gates = F.softmax(gate_logits, dim=1)
         fused = self.trunk((gates.unsqueeze(-1) * stacked).sum(dim=1))
         return {
             "logits": self.outcome_head(fused),

@@ -129,6 +129,8 @@ class Line:
                 yield from self._inspect(tm["refer_review"])
                 if outcome == "SCRAP" and self.rng.random() < items["refer_scrap_catch"]["value"]:
                     dispatched = False
+                elif outcome != "SCRAP" and self.rng.random() < items["refer_false_scrap"]["value"]:
+                    dispatched, wrongful = False, True
                 else:
                     dispatched = yield from self._today(outcome)
         if counted:

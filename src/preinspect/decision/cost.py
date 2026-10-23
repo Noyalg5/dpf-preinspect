@@ -11,7 +11,8 @@ its true outcome:
   cleaning; a serviceable unit is released with ``release_probability``
   (then processed as today) or else wrongly scrapped.
 - REFER: an inspector reviews, catching a true scrap unit with probability
-  ``refer_scrap_catch``; otherwise the unit is processed as today.
+  ``refer_scrap_catch`` but also wrongly scrapping a serviceable unit with
+  probability ``refer_false_scrap``; otherwise the unit is processed as today.
 """
 
 from __future__ import annotations
@@ -42,6 +43,7 @@ def cost_matrix(costs: dict[str, Any]) -> np.ndarray:
     scrap, rate = _v(costs, it, "scrap_handling"), _v(costs, it, "inspector_rate")
     wrongful, release = _v(costs, it, "wrongful_scrap_value"), _v(costs, it, "release_probability")
     catch = _v(costs, it, "refer_scrap_catch")
+    false_scrap = _v(costs, it, "refer_false_scrap")
     quarantine = rate * _v(costs, it, "quarantine_review_min")
     refer = rate * _v(costs, it, "refer_review_min")
     base = baseline_cost(costs)
@@ -54,7 +56,7 @@ def cost_matrix(costs: dict[str, Any]) -> np.ndarray:
             m[3, j] = refer + catch * scrap + (1 - catch) * base[o]
         else:
             m[2, j] = quarantine + release * base[o] + (1 - release) * (wrongful + scrap)
-            m[3, j] = refer + base[o]
+            m[3, j] = refer + false_scrap * (wrongful + scrap) + (1 - false_scrap) * base[o]
     return m
 
 

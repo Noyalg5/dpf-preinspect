@@ -1,8 +1,9 @@
 """Conformal sets, threshold selection and routing applied to a run's predictions.
 
 Data use:
-- calibration-fit half: probability calibration, anomaly threshold, routing thresholds;
+- calibration-fit half: probability calibration;
 - calibration-conformal half: conformal quantiles;
+- whole calibration split: anomaly threshold and routing thresholds;
 - test split: every reported number.
 Labels on calibration units are the *recorded* dispositions, as on a real line.
 """
@@ -50,6 +51,9 @@ def decide(
     y_rec = preds["disposition"].map(OUTCOMES.index).to_numpy()
     in_fit = preds["unit_id"].isin(fit_ids).to_numpy()
     in_conf = preds["unit_id"].isin(conf_ids).to_numpy()
+    # Thresholds are chosen on the whole calibration split: with only half of
+    # it, one unit moves the wrongful-scrap estimate by about two points.
+    in_cal = in_fit | in_conf
     alphas = sorted({*rcfg["alphas"], *rcfg["alpha_grid"], rcfg["interval_alpha"]})
     sets = ConformalOutcome(alphas).fit(proba[in_conf], y_rec[in_conf])
     intervals = ConformalInterval(alphas).fit(
@@ -57,13 +61,13 @@ def decide(
         preds.loc[in_conf, "dp_pred"].to_numpy(),
     )
     anom = anomaly.reindex(preds["unit_id"]).to_numpy()
-    anom_thr = float(np.nanquantile(anom[in_fit], rcfg["anomaly_quantile"]))
-    in_set = {a: sets.predict(proba[in_fit], a)[:, 2] for a in rcfg["alpha_grid"]}
+    anom_thr = float(np.nanquantile(anom[in_cal], rcfg["anomaly_quantile"]))
+    in_set = {a: sets.predict(proba[in_cal], a)[:, 2] for a in rcfg["alpha_grid"]}
     policy, search = choose_thresholds(
-        proba[in_fit],
+        proba[in_cal],
         in_set,
-        anom[in_fit],
-        preds.loc[in_fit, "disposition"].to_numpy(),
+        anom[in_cal],
+        preds.loc[in_cal, "disposition"].to_numpy(),
         matrix,
         costs["policy"]["wrongful_scrap_cap"]["value"],
         rcfg,

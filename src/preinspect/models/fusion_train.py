@@ -22,6 +22,22 @@ def _to(batch: dict[str, torch.Tensor], device: torch.device) -> dict[str, torch
     return {k: v.to(device) for k, v in batch.items()}
 
 
+def modality_mask(
+    batch: int, n_modalities: int, p: float, device: torch.device
+) -> torch.Tensor | None:
+    """Random per-sample modality dropout, always keeping at least one modality.
+
+    Without it the gate can settle on whichever branch learns fastest and
+    starve the others (modality competition).
+    """
+    if p <= 0 or n_modalities < 2:
+        return None
+    keep = torch.rand(batch, n_modalities) >= p
+    none_kept = ~keep.any(dim=1)
+    keep[none_kept, torch.randint(n_modalities, (int(none_kept.sum()),))] = True
+    return keep.to(device)
+
+
 def train_fusion(
     cfg: dict[str, Any],
     ddir: Path,
@@ -72,7 +88,10 @@ def train_fusion(
         running = []
         for batch in loader:
             b = _to(batch, device)
-            out = model(b["inlet"], b["outlet"], b["flow"], b["meta"])
+            keep = modality_mask(
+                len(b["flow"]), len(model.modalities), f["modality_dropout"], device
+            )
+            out = model(b["inlet"], b["outlet"], b["flow"], b["meta"], keep)
             ok = torch.isfinite(b["dp"])
             loss = (
                 F.cross_entropy(out["logits"], b["outcome"], weight=weights)

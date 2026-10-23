@@ -101,7 +101,20 @@ def build_context(cfg: Config, run: Run) -> dict[str, Any]:
         "timings": timings,
         "budget": resolution_budget(cfg["station"]).to_dict("records"),
         "sample_sizes": sample_sizes(_safe(ddir / "stats.json")),
+        "gates": fusion_gates(run),
     }
+
+
+def fusion_gates(run: Run) -> dict[str, float] | None:
+    """Mean gate weight per modality of the end-to-end network on the test split."""
+    import pandas as pd
+
+    path = run.path / "predictions" / "e2e_all_s0.parquet"
+    if not path.exists():
+        return None
+    preds = pd.read_parquet(path)
+    test = preds[preds["split"] == "test"]
+    return {c[5:]: float(test[c].mean()) for c in test.columns if c.startswith("gate_")}
 
 
 def sample_sizes(stats: dict | None) -> list[dict[str, float]]:
