@@ -1,0 +1,25 @@
+# Environments and caches
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+.DS_Store
+
+# Generated data, runs and model weights (reproducible from configs)
+/data/
+/runs/
+*.pt
+*.pth
+*.onnx
+*.ckpt
+/weights/
+*.sqlite
+*.sqlite3
+*.db
+
+# External datasets (licence forbids redistribution)
+/external/

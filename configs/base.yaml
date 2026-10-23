@@ -1,0 +1,16 @@
+# Base configuration. Profiles (tiny, demo, full) extend this file and
+# override only what differs. Every tunable number lives in config, not code.
+name: base
+dataset_name: base
+seed: 20261023
+device: auto            # auto = cuda -> mps -> cpu; PREINSPECT_DEVICE overrides
+num_workers: 4          # CPU processes for rendering and feature extraction
+
+paths:
+  data_root: data
+  runs_root: runs
+  reports_root: reports
+
+generator:
+  version: "1.0"
+  image_size: 384

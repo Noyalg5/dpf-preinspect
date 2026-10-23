@@ -1,0 +1,6 @@
+# Full profile: larger data, higher resolution, three training seeds.
+extends: base
+name: full
+dataset_name: full
+generator:
+  image_size: 384

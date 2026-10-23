@@ -1,0 +1,59 @@
+# Cost and energy model for routing decisions and the line simulation.
+# EVERY value here is an assumption chosen for illustration only. Replace with
+# figures agreed with operations and finance before drawing any conclusion.
+currency: GBP
+items:
+  standard_clean:
+    value: 55.0
+    unit: GBP/unit
+    note: "assumption: thermal bake oven share + pneumatic clean, energy and labour"
+  extended_clean:
+    value: 95.0
+    unit: GBP/unit
+    note: "assumption: longer bake profile plus repeat pneumatic cycles"
+  downstream_test:
+    value: 12.0
+    unit: GBP/test
+    note: "assumption: flow-restriction plus filtration-integrity test, per pass"
+  inspector_rate:
+    value: 0.70
+    unit: GBP/min
+    note: "assumption: loaded labour rate of an inspector"
+  refer_review_min:
+    value: 6.0
+    unit: min/unit
+    note: "assumption: inspector review of a REFER unit at the station"
+  quarantine_review_min:
+    value: 10.0
+    unit: min/unit
+    note: "assumption: confirmation of a QUARANTINE unit before scrap"
+  wrongful_scrap_value:
+    value: 650.0
+    unit: GBP/unit
+    note: "assumption: value of a serviceable core lost if scrapped in error"
+  scrap_handling:
+    value: 8.0
+    unit: GBP/unit
+    note: "assumption: handling and disposal of a scrapped substrate"
+  release_probability:
+    value: 0.85
+    unit: probability
+    note: "assumption: chance an inspector releases a serviceable unit wrongly quarantined"
+energy:
+  standard_clean_kwh:
+    value: 45.0
+    unit: kWh/unit
+    note: "assumption: oven energy share per unit, standard bake"
+  extended_clean_kwh:
+    value: 80.0
+    unit: kWh/unit
+    note: "assumption: oven energy share per unit, extended bake"
+  grid_co2e_kg_per_kwh:
+    value: 0.207
+    unit: kgCO2e/kWh
+    note: "assumption: order of magnitude of a UK grid-average factor [verify current published factor]"
+policy:
+  wrongful_scrap_cap:
+    value: 0.02
+    unit: fraction of non-scrap units routed to QUARANTINE
+    note: "assumption: operating constraint to agree with quality"

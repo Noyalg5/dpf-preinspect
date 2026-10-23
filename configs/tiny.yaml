@@ -1,0 +1,7 @@
+# Smallest profile: exercises every code path in seconds for tests and CI.
+extends: base
+name: tiny
+dataset_name: tiny
+num_workers: 1
+generator:
+  image_size: 128

@@ -1,0 +1,6 @@
+# Laptop demonstration profile: end to end in under 15 minutes on an M2.
+extends: base
+name: demo
+dataset_name: demo
+generator:
+  image_size: 256

@@ -1,0 +1,46 @@
+# Acceptance criteria for the prototype. Thresholds are ILLUSTRATIVE targets
+# to be agreed with stakeholders (quality, operations, IT/OT) before a pilot.
+status: illustrative
+criteria:
+  AC-01:
+    name: Wrongful-scrap rate
+    description: Share of serviceable units (true PASS or REWORK) routed to QUARANTINE on the test split.
+    metric: wrongful_scrap_rate
+    op: "<="
+    target: 0.02
+  AC-02:
+    name: SCRAP recall
+    description: Share of true SCRAP units routed to QUARANTINE or REFER (not released to cleaning unchecked).
+    metric: scrap_capture_rate
+    op: ">="
+    target: 0.90
+  AC-03:
+    name: p95 latency
+    description: End-to-end inference time per unit (two images, flow curve, metadata), CPU, 95th percentile.
+    metric: latency_p95_cpu_s
+    op: "<="
+    target: 2.0
+  AC-04:
+    name: Decision repeatability
+    description: Share of units whose route is identical across two re-imaging trials (MSA set).
+    metric: route_repeatability
+    op: ">="
+    target: 0.90
+  AC-05:
+    name: Conformal coverage
+    description: Empirical coverage of 90 % outcome prediction sets on the test split, allowing finite-sample tolerance.
+    metric: coverage_alpha_0_10
+    op: ">="
+    target: 0.87
+  AC-06:
+    name: Graceful degradation
+    description: At every corruption type and severity, confidently wrong automatic routes stay within a margin of the clean-input rate.
+    metric: max_wrong_auto_route_increase
+    op: "<="
+    target: 0.10
+  AC-07:
+    name: Audit-trail integrity
+    description: A tampered audit record is detected by hash-chain verification and an untampered chain verifies clean.
+    metric: audit_integrity_ok
+    op: "=="
+    target: true
