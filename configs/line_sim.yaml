@@ -1,13 +1,12 @@
-# Discrete-event line model. All rates and capacities are assumptions for
+# Discrete-event line model. All rates and capacities are ASSUMPTIONS for
 # illustration; replace with time studies from the real line.
 horizon_days: 20
+warmup_days: 2
 replications: 5
-shifts:
-  hours_per_day: 16          # two 8-hour shifts
 arrivals:
-  units_per_day: 60
+  units_per_day: 60          # Poisson arrivals, continuous operation
 resources:
-  ovens: 6                   # bake ovens, one unit each
+  oven_slots: 24             # e.g. 6 bake ovens holding 4 units each, running around the clock
   test_benches: 1
   inspectors: 1
   pre_inspection_stations: 1
@@ -20,8 +19,9 @@ times_min:
   refer_review: 6.0
   quarantine_review: 10.0
 tornado:
-  scrap_recall: [0.70, 0.98]
+  replications: 2
+  scrap_capture: [0.6, 0.98]
   false_quarantine_rate: [0.0, 0.05]
-  arrivals_per_day: [45, 75]
+  arrivals_per_day: [45, 66]
   standard_clean_cost: [40.0, 70.0]
   wrongful_scrap_value: [400.0, 900.0]
