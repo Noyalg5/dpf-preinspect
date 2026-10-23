@@ -1,0 +1,94 @@
+# Validation report
+
+> **Synthetic data.** Every figure below comes from data generated locally by the virtual inspection cell. It shows how the system would be validated, not how it performs on real filters. Thresholds are illustrative targets in `configs/acceptance.yaml`, to be agreed with stakeholders.
+
+- Run: `{{ run_name }}` (profile `{{ profile }}`, code `{{ code_version[:10] }}`, data manifest `{{ data_version[:12] }}`)
+- Deployed model: concept route `{{ deployed }}` with the routing policy chosen on calibration data
+- Rendered by `make validate` from `runs/{{ run_name }}/metrics.json`
+
+## Acceptance criteria
+
+| ID | Criterion | Target | Measured | Result | Evidence |
+|---|---|---|---|---|---|
+{% for c in criteria %}
+| {{ c.id }} | {{ c.name }} | {{ c.op }} {{ c.target | fmt }} | {{ c.value | fmt }} | **{{ c.status }}** | {{ c.evidence }} |
+{% endfor %}
+
+{{ passed }} of {{ criteria | length }} criteria pass.
+
+## Evidence
+
+### Decisions on the test split (AC-01, AC-02, AC-05)
+
+- Test units: {{ decision.n_test }}. Wrongful-scrap rate {{ decision.rates.wrongful_scrap_rate | pct }}, SCRAP capture (QUARANTINE or REFER) {{ decision.rates.scrap_capture_rate | pct }}, REFER share {{ decision.rates.share_REFER | pct }}.
+- Thresholds: quarantine at P(SCRAP) >= {{ decision.policy.t_quarantine | fmt(2) }}, extended clean at P(REWORK) >= {{ decision.policy.t_rework | fmt(2) }}, conformal level alpha = {{ decision.policy.alpha }}, anomaly threshold {{ decision.policy.anomaly_threshold | fmt(3) }}.
+{% for a, cov in decision.coverage.items() %}
+- Conformal sets at alpha = {{ a }}: coverage {{ cov.sets_vs_recorded.coverage | pct }} against recorded labels and {{ cov.sets_vs_truth.coverage | pct }} against the latent truth; mean set size {{ cov.sets_vs_recorded.mean_set_size | fmt(2) }}. ΔP-ratio intervals ± {{ cov.interval_half_width | fmt(3) }} cover {{ cov.interval_vs_recorded | pct }} of recorded values.
+{% endfor %}
+
+### Robustness (AC-06)
+
+![Degradation curves](figures/robustness.png)
+
+| Corruption | Severity | Macro-F1 | REFER share | Anomaly REFER | Unsafe automatic routes |
+|---|---|---|---|---|---|
+{% for r in robustness %}
+| {{ r.kind }} | {{ r.severity }} | {{ r.macro_f1 | fmt }} | {{ r.refer_share | pct }} | {{ r.anomaly_refer_share | pct }} | {{ r.unsafe_rate | pct }} |
+{% endfor %}
+
+An unsafe automatic route is a serviceable unit sent to QUARANTINE or a true SCRAP unit released to cleaning without review.
+
+### Domain shift and commissioning
+
+| Stage | Macro-F1 | SCRAP recall | Wrongful scrap | SCRAP capture | REFER share | Units |
+|---|---|---|---|---|---|---|
+| Main test split | {{ shift.reference.macro_f1 | fmt }} | {{ shift.reference.scrap_recall | pct }} | {{ shift.reference.wrongful_scrap_rate | pct }} | {{ shift.reference.scrap_capture_rate | pct }} | {{ shift.reference.refer_share | pct }} | {{ shift.reference.n }} |
+| New line, before commissioning | {{ shift.before.macro_f1 | fmt }} | {{ shift.before.scrap_recall | pct }} | {{ shift.before.wrongful_scrap_rate | pct }} | {{ shift.before.scrap_capture_rate | pct }} | {{ shift.before.refer_share | pct }} | {{ shift.before.n }} |
+| New line, after commissioning on {{ shift.commissioning_units }} units | {{ shift.after.macro_f1 | fmt }} | {{ shift.after.scrap_recall | pct }} | {{ shift.after.wrongful_scrap_rate | pct }} | {{ shift.after.scrap_capture_rate | pct }} | {{ shift.after.refer_share | pct }} | {{ shift.after.n }} |
+
+### Measurement system analysis (AC-04)
+
+Attribute agreement on {{ msa.attribute.n_units }} units, two trials each, against the true outcome:
+
+| Appraiser | Within-appraiser agreement | Agreement with standard (both trials) | Cohen's kappa vs standard |
+|---|---|---|---|
+{% for name, a in msa.attribute.appraisers.items() %}
+| {{ name }} | {{ a.within_agreement | pct }} | {{ a.vs_standard | pct }} | {{ a.cohen_kappa_vs_standard | fmt(2) }} |
+{% endfor %}
+
+- All appraisers agree with each other on {{ msa.attribute.between_all_agree | pct }} of units; Fleiss' kappa (first trials) {{ msa.attribute.fleiss_kappa | fmt(2) }}.
+- System route repeatability across re-imaging: {{ msa.attribute.route_repeatability | pct }}.
+
+Gauge R&R on the predicted ΔP ratio ({{ msa.grr.parts }} units x {{ msa.grr.operators }} stations x {{ msa.grr.trials }} trials): %GRR {{ msa.grr.pct_grr | fmt(1) }} % of study variation (repeatability {{ msa.grr.pct_ev | fmt(1) }} %, reproducibility {{ msa.grr.pct_av | fmt(1) }} %), ndc = {{ msa.grr.ndc | fmt(0) }}. AIAG guidance: under 10 % acceptable, 10 to 30 % may be acceptable depending on the application, over 30 % unacceptable; ndc of at least 5.
+
+{% if doe %}
+### Imaging DoE (Should)
+
+![Main effects](figures/doe_effects.png)
+
+Recommended set-up: lighting `{{ doe.recommended.lighting }}`, exposure {{ doe.recommended.exposure_ev }} EV, resolution {{ doe.recommended.resolution }} px (crack recall {{ doe.recommended_scores.crack_recall | pct }}, false-reject rate {{ doe.recommended_scores.false_reject_rate | pct }}). The resolution effect includes a train/test mismatch because the perception model was trained only at the higher resolution.
+
+| Term | Effect on crack recall | p | Effect on false-reject rate | p |
+|---|---|---|---|---|
+{% for term, eff in doe.crack_recall.effects.items() %}
+| {{ term }} | {{ eff | fmt }} | {{ doe.crack_recall.p_values.get(term) | fmt }} | {{ doe.false_reject_rate.effects[term] | fmt }} | {{ doe.false_reject_rate.p_values.get(term) | fmt }} |
+{% endfor %}
+{% endif %}
+
+{% if latency %}
+### Latency (AC-03, Should)
+
+| Path | p50 (s) | p95 (s) | Units |
+|---|---|---|---|
+{% for name, t in latency.timings.items() %}
+| {{ name }} | {{ t.p50_s | fmt(3) }} | {{ t.p95_s | fmt(3) }} | {{ t.n }} |
+{% endfor %}
+
+ONNX export of the U-Net: largest output difference from PyTorch {{ latency.onnx_max_abs_diff | fmt(6) }}. Timings were taken on the development laptop under heavy memory pressure from other applications and are an upper bound for this hardware.
+{% endif %}
+
+### Audit trail (AC-07)
+
+A fresh trail of {{ audit.records }} records verified clean: {{ audit.clean_ok | fmt }}. After altering two records directly in the database: tampering detected: {{ audit.tamper_detected | fmt }} ({{ audit.tamper_message }}).
+
+Campaign run time: {% for k, v in timings.items() %}{{ k }} {{ v }} s{{ "; " if not loop.last }}{% endfor %}.

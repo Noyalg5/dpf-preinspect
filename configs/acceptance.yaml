@@ -9,7 +9,7 @@ criteria:
     op: "<="
     target: 0.02
   AC-02:
-    name: SCRAP recall
+    name: SCRAP capture
     description: Share of true SCRAP units routed to QUARANTINE or REFER (not released to cleaning unchecked).
     metric: scrap_capture_rate
     op: ">="
